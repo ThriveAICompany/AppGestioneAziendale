@@ -9,6 +9,33 @@ except ImportError:
     pass
 
 
+class PgCursor:
+    """Wrapper around psycopg2 cursor that returns self from execute() to allow chaining."""
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    def execute(self, sql, params=None):
+        self._cur.execute(sql, params)
+        return self
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    def executemany(self, sql, seq):
+        self._cur.executemany(sql, seq)
+        return self
+
+    def __iter__(self):
+        return iter(self._cur)
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
+
 class PgConn:
     """Thin wrapper around psycopg2 connection that mimics sqlite3's conn.execute() API."""
 
@@ -16,12 +43,12 @@ class PgConn:
         self._conn = conn
 
     def execute(self, sql, params=None):
-        cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cur = PgCursor(self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor))
         cur.execute(sql, params)
         return cur
 
     def cursor(self):
-        return self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        return PgCursor(self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor))
 
     def commit(self):
         self._conn.commit()
