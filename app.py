@@ -394,7 +394,7 @@ def dashboard():
           AND ct.stato = 'attivo'
           AND rc.pagato = 0
           AND rc.data_scadenza >= %s
-        GROUP BY ct.id
+        GROUP BY ct.id, ct.titolo, ct.percentuale_partner, cl.nome
         ORDER BY fine_contratto ASC NULLS LAST
     """, (today,)).fetchall()
 
@@ -2211,7 +2211,7 @@ def _build_cfo_data(conn, anno_ref=None):
         JOIN rate_contratto rc ON rc.contratto_id = ct.id
         WHERE ct.tipo_pagamento = 'abbonamento' AND ct.stato = 'attivo'
           AND rc.pagato = 0 AND rc.data_scadenza >= %s
-        GROUP BY ct.id
+        GROUP BY ct.id, ct.percentuale_partner
     """, (today.isoformat(),)).fetchall()
     mrr = sum(float(a['rata_mensile']) for a in abbonamenti)
     mrr_netto = sum(float(a['rata_mensile']) * (1 - (float(a['percentuale_partner']) or 0) / 100) for a in abbonamenti)
@@ -2614,7 +2614,7 @@ def _build_cfo_data(conn, anno_ref=None):
         JOIN contratti ct ON rc.contratto_id = ct.id
         JOIN clienti cl ON ct.cliente_id = cl.id
         WHERE rc.pagato = 1 AND LEFT(rc.data_pagamento, 4) = %s
-        GROUP BY ct.cliente_id ORDER BY fatturato DESC
+        GROUP BY ct.cliente_id, cl.nome, cl.id ORDER BY fatturato DESC
     """, (str(anno_corrente),)).fetchall()
 
     tot_fatt_anno = sum(float(r['fatturato']) for r in conc_rows)
@@ -3314,7 +3314,7 @@ def proiezioni_importa():
         FROM scadenze_costi sc
         JOIN rate_scadenza_costo rsc ON rsc.scadenza_costo_id = sc.id
         WHERE LEFT(rsc.data_scadenza, 4) = %s
-        GROUP BY sc.id
+        GROUP BY sc.id, sc.nome, sc.uscita_cassa_rata, sc.ricorrenza
     """, (str(anno),)).fetchall()
 
     for r in rows:
