@@ -1916,7 +1916,7 @@ def _riconcilia_uscite(conn, uscite):
         already_paid = conn.execute("""
             SELECT rsc.id FROM rate_scadenza_costo rsc
             WHERE COALESCE(rsc.pagato, 0) = 1
-              AND ROUND(COALESCE(rsc.uscita_cassa, 0), 2) = ROUND(%s, 2)
+              AND ROUND(COALESCE(rsc.uscita_cassa, 0)::numeric, 2) = ROUND(%s::numeric, 2)
               AND rsc.data_pagamento = %s
         """, (u['importo'], u['data'])).fetchall()
         if already_paid:
@@ -2076,7 +2076,7 @@ def riconcilia_conferma():
         if conn.execute("""
             SELECT id FROM rate_scadenza_costo
             WHERE scadenza_costo_id=%s AND data_pagamento=%s
-              AND ROUND(COALESCE(uscita_cassa,0),2)=ROUND(%s,2)
+              AND ROUND(COALESCE(uscita_cassa,0)::numeric,2)=ROUND(%s::numeric,2)
         """, (sid, data, importo)).fetchone():
             return
         num = conn.execute(
