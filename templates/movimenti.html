@@ -7,6 +7,10 @@
   <div style="display:flex; gap:0.5rem;">
     <button class="btn btn-primary" onclick="toggleForm('form-nuovo-movimento')">+ Nuovo Movimento</button>
     <a href="{{ url_for('import_csv') }}" class="btn btn-secondary">Importa da CSV</a>
+    <form action="{{ url_for('elimina_tutti_movimenti') }}" method="POST"
+          onsubmit="return confirm('Sei sicuro? Questa azione eliminerà TUTTI i movimenti e non può essere annullata.')">
+      <button type="submit" class="btn btn-danger">Elimina tutti</button>
+    </form>
   </div>
 </div>
 

@@ -1150,6 +1150,16 @@ def elimina_movimento(mid):
     return redirect(url_for("movimenti", **redirect_args))
 
 
+@app.route("/movimenti/elimina-tutti", methods=["POST"])
+@login_required
+def elimina_tutti_movimenti():
+    conn = get_connection()
+    conn.execute("DELETE FROM movimenti")
+    conn.commit()
+    conn.close()
+    return redirect(url_for("movimenti"))
+
+
 @app.route("/movimenti/import", methods=["GET"])
 @login_required
 def import_csv():
