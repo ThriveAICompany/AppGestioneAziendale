@@ -306,7 +306,16 @@ def format_eur_filter(value):
 @app.route("/impostazioni/saldo", methods=["POST"])
 @login_required
 def imposta_saldo_iniziale():
-    valore = request.form.get("saldo_iniziale", "").strip().replace(",", ".")
+    valore = request.form.get("saldo_iniziale", "").strip()
+    # Gestione formato italiano: "40.000,50" → 40000.50 oppure "40.000" → 40000
+    if "," in valore:
+        # Formato europeo: punto = migliaia, virgola = decimale
+        valore = valore.replace(".", "").replace(",", ".")
+    elif "." in valore:
+        # Solo punto: se seguito da esattamente 3 cifre finali → separatore migliaia
+        import re as _re
+        if _re.match(r'^\d{1,3}(\.\d{3})+$', valore):
+            valore = valore.replace(".", "")
     try:
         saldo = float(valore)
     except ValueError:
@@ -1185,16 +1194,18 @@ def import_csv_conferma():
     importati = 0
     duplicati = 0
     for r in righe:
-        codice_banca = r.get('codice_banca')
+        codice_banca = r.get('codice_banca') or None
         if codice_banca:
+            # codice_banca è l'ID univoco della banca: basta quello per rilevare i duplicati
             esistente = conn.execute(
-                "SELECT id FROM movimenti WHERE codice_banca=%s AND descrizione=%s",
-                (codice_banca, r['descrizione'])
+                "SELECT id FROM movimenti WHERE codice_banca=%s",
+                (codice_banca,)
             ).fetchone()
         else:
+            # Fallback: confronta data + tipo + importo (con tolleranza float) + descrizione
             esistente = conn.execute(
-                "SELECT id FROM movimenti WHERE data=%s AND descrizione=%s AND importo=%s AND tipo=%s",
-                (r['data'], r['descrizione'], r['importo'], r['tipo'])
+                "SELECT id FROM movimenti WHERE data=%s AND tipo=%s AND ABS(importo - %s) < 0.005 AND descrizione=%s",
+                (r['data'], r['tipo'], float(r['importo']), r['descrizione'])
             ).fetchone()
         if esistente:
             duplicati += 1
@@ -1202,7 +1213,7 @@ def import_csv_conferma():
         categoria = r.get('categoria') or categoria_default
         conn.execute(
             "INSERT INTO movimenti (tipo, descrizione, importo, data, categoria, codice_banca) VALUES (%s, %s, %s, %s, %s, %s)",
-            (r['tipo'], r['descrizione'], r['importo'], r['data'], categoria, codice_banca)
+            (r['tipo'], r['descrizione'], float(r['importo']), r['data'], categoria, codice_banca)
         )
         importati += 1
     conn.commit()

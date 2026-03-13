@@ -323,6 +323,12 @@ def _migrate(conn):
         c.execute("ALTER TABLE movimenti ADD COLUMN categoria TEXT DEFAULT 'altro'")
     if 'codice_banca' not in existing:
         c.execute("ALTER TABLE movimenti ADD COLUMN codice_banca TEXT")
+    # Indice univoco su codice_banca (solo righe non NULL) per prevenire duplicati bancari
+    c.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_movimenti_codice_banca_unique
+        ON movimenti(codice_banca)
+        WHERE codice_banca IS NOT NULL
+    """)
 
     # contratti: add data_fine, data_firma
     existing = _get_columns(c, 'contratti')
