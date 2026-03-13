@@ -1204,23 +1204,32 @@ def import_csv_conferma():
     conn = get_connection()
     importati = 0
     duplicati = 0
+
+    # Carico i record già presenti nel DB PRIMA del loop, così le righe
+    # inserite durante questo stesso import non vengono mai considerate duplicate.
+    existing_codici = set(
+        r[0] for r in conn.execute(
+            "SELECT codice_banca FROM movimenti WHERE codice_banca IS NOT NULL"
+        ).fetchall()
+    )
+    existing_fallback = set(
+        (r[0], r[1], round(float(r[2]), 2), r[3])
+        for r in conn.execute(
+            "SELECT data, tipo, importo, descrizione FROM movimenti WHERE codice_banca IS NULL"
+        ).fetchall()
+    )
+
     for r in righe:
         codice_banca = r.get('codice_banca') or None
         if codice_banca:
-            # codice_banca è l'ID univoco della banca: basta quello per rilevare i duplicati
-            esistente = conn.execute(
-                "SELECT id FROM movimenti WHERE codice_banca=%s",
-                (codice_banca,)
-            ).fetchone()
+            if codice_banca in existing_codici:
+                duplicati += 1
+                continue
         else:
-            # Fallback: confronta data + tipo + importo (con tolleranza float) + descrizione
-            esistente = conn.execute(
-                "SELECT id FROM movimenti WHERE data=%s AND tipo=%s AND ABS(importo - %s) < 0.005 AND descrizione=%s",
-                (r['data'], r['tipo'], float(r['importo']), r['descrizione'])
-            ).fetchone()
-        if esistente:
-            duplicati += 1
-            continue
+            key = (r['data'], r['tipo'], round(float(r['importo']), 2), r['descrizione'])
+            if key in existing_fallback:
+                duplicati += 1
+                continue
         categoria = r.get('categoria') or categoria_default
         conn.execute(
             "INSERT INTO movimenti (tipo, descrizione, importo, data, categoria, codice_banca) VALUES (%s, %s, %s, %s, %s, %s)",
