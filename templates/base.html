@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Thrive X{% endblock %} — Gestionale</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-brand">⚡ Thrive X</span>
+      <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">&#9776;</button>
+    </div>
+    <nav>
+      <ul class="sidebar-nav">
+
+        <li>
+          <a href="{{ url_for('dashboard') }}"
+             class="sidebar-item {% if request.endpoint == 'dashboard' %}active{% endif %}"
+             data-label="Dashboard">
+            <i data-lucide="layout-dashboard" class="sidebar-icon"></i>
+            <span class="sidebar-label">Dashboard</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{ url_for('ricavi') }}"
+             class="sidebar-item {% if request.endpoint == 'ricavi' %}active{% endif %}"
+             data-label="Ricavi">
+            <i data-lucide="table-2" class="sidebar-icon"></i>
+            <span class="sidebar-label">Ricavi</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{ url_for('costi_anno') }}"
+             class="sidebar-item {% if request.endpoint == 'costi_anno' %}active{% endif %}"
+             data-label="Costi">
+            <i data-lucide="table-2" class="sidebar-icon"></i>
+            <span class="sidebar-label">Costi</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{ url_for('partner') }}"
+             class="sidebar-item {% if request.endpoint in ['partner','nuovo_partner','modifica_partner'] %}active{% endif %}"
+             data-label="Partner">
+            <i data-lucide="handshake" class="sidebar-icon"></i>
+            <span class="sidebar-label">Partner</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{ url_for('pipeline') }}"
+             class="sidebar-item {% if request.endpoint in ['pipeline','nuova_opportunita','aggiorna_stato_opportunita','modifica_opportunita','elimina_opportunita'] %}active{% endif %}"
+             data-label="Pipeline">
+            <i data-lucide="kanban" class="sidebar-icon"></i>
+            <span class="sidebar-label">Pipeline</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{ url_for('movimenti') }}"
+             class="sidebar-item {% if request.endpoint in ['movimenti','nuovo_movimento','import_csv','import_csv_upload','import_csv_conferma'] %}active{% endif %}"
+             data-label="Movimenti">
+            <i data-lucide="arrow-left-right" class="sidebar-icon"></i>
+            <span class="sidebar-label">Movimenti</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{ url_for('pl') }}"
+             class="sidebar-item {% if request.endpoint == 'pl' %}active{% endif %}"
+             data-label="P&amp;L">
+            <i data-lucide="trending-up" class="sidebar-icon"></i>
+            <span class="sidebar-label">P&amp;L</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{ url_for('proiezioni') }}"
+             class="sidebar-item {% if request.endpoint in ['proiezioni','nuova_proiezione_uscita','modifica_proiezione_uscita','elimina_proiezione_uscita','proiezioni_importa'] %}active{% endif %}"
+             data-label="Proiezioni">
+            <i data-lucide="telescope" class="sidebar-icon"></i>
+            <span class="sidebar-label">Proiezioni</span>
+          </a>
+        </li>
+
+
+        <li>
+          <a href="{{ url_for('cfo') }}"
+             class="sidebar-item cfo-item {% if request.endpoint in ['cfo','cfo_chat'] %}active{% endif %}"
+             data-label="CFO ✦">
+            <i data-lucide="brain-circuit" class="sidebar-icon"></i>
+            <span class="sidebar-label">CFO ✦</span>
+          </a>
+        </li>
+
+      </ul>
+    </nav>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <button class="mobile-menu-btn" id="mobileMenuBtn" title="Apri menu">&#9776;</button>
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    lucide.createIcons();
+
+    const sidebar  = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const mobileBtn = document.getElementById('mobileMenuBtn');
+    const overlay   = document.getElementById('sidebarOverlay');
+
+    // Ripristina stato desktop
+    if (localStorage.getItem('sidebar') === 'collapsed') {
+      sidebar.classList.add('sidebar-collapsed');
+    }
+
+    // Toggle desktop (collapse/expand)
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('sidebar-collapsed');
+      localStorage.setItem('sidebar',
+        sidebar.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+    });
+
+    // Apri sidebar su mobile
+    mobileBtn.addEventListener('click', () => {
+      document.body.classList.add('sidebar-open');
+    });
+
+    // Chiudi sidebar cliccando overlay
+    overlay.addEventListener('click', () => {
+      document.body.classList.remove('sidebar-open');
+    });
+  </script>
+</body>
+</html>

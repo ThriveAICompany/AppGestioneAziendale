@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Partner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Partner & Commerciali</h1>
+  <button class="btn btn-primary" onclick="toggleForm('form-nuovo-partner')">+ Aggiungi Partner</button>
+</div>
+
+<div id="form-nuovo-partner" class="form-card hidden">
+  <h3>Nuovo Partner</h3>
+  <form action="{{ url_for('nuovo_partner') }}" method="POST">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nome *</label>
+        <input type="text" name="nome" required placeholder="Es. Mario Rossi / Agenzia XYZ" />
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select name="tipo">
+          <option value="operativo">Partner Operativo</option>
+          <option value="commerciale">Partner Commerciale</option>
+          <option value="passaparola">Passaparola / Referral</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>% Default a loro</label>
+        <input type="number" name="percentuale_default" value="60" min="0" max="100" step="0.5" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="email@partner.it" />
+      </div>
+      <div class="form-group">
+        <label>Telefono</label>
+        <input type="text" name="telefono" placeholder="+39..." />
+      </div>
+      <div class="form-group flex-2">
+        <label>Note</label>
+        <input type="text" name="note" placeholder="Note..." />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Salva</button>
+      <button type="button" class="btn btn-secondary" onclick="toggleForm('form-nuovo-partner')">Annulla</button>
+    </div>
+  </form>
+</div>
+
+{% if partner_list %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Nome</th>
+      <th>Tipo</th>
+      <th>% Default</th>
+      <th>Email</th>
+      <th>Contratti</th>
+      <th>Volume Totale</th>
+      <th>Quota Partner</th>
+      <th>Azioni</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in partner_list %}
+    <tr>
+      <td><strong>{{ p.nome }}</strong></td>
+      <td><span class="badge badge-tipo-{{ p.tipo }}">{{ p.tipo.capitalize() }}</span></td>
+      <td>{{ p.percentuale_default }}%</td>
+      <td>{{ p.email or "—" }}</td>
+      <td>{{ p.num_contratti }}</td>
+      <td>&euro; {{ (p.volume_totale)|format_eur }}</td>
+      <td class="negativo"><strong>&euro; {{ (p.quota_partner)|format_eur }}</strong></td>
+      <td class="actions">
+        <div class="actions-wrap">
+          <button class="btn btn-sm btn-secondary btn-icon" onclick="toggleEdit('ep-{{ p.id }}')" title="Modifica"><i data-lucide="pencil"></i></button>
+          <form action="{{ url_for('elimina_partner', pid=p.id) }}" method="POST" style="display:contents"
+                onsubmit="return confirm('Eliminare {{ p.nome }}?')">
+            <button class="btn btn-sm btn-danger btn-icon" title="Elimina"><i data-lucide="trash-2"></i></button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    <tr id="ep-{{ p.id }}" class="edit-row hidden">
+      <td colspan="8">
+        <form action="{{ url_for('modifica_partner', pid=p.id) }}" method="POST">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nome *</label>
+              <input type="text" name="nome" value="{{ p.nome }}" required />
+            </div>
+            <div class="form-group">
+              <label>Tipo</label>
+              <select name="tipo">
+                {% for t in ['operativo','commerciale','passaparola'] %}
+                <option value="{{ t }}" {% if p.tipo == t %}selected{% endif %}>{{ t.capitalize() }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>% Default a loro</label>
+              <input type="number" name="percentuale_default" value="{{ p.percentuale_default }}" min="0" max="100" step="0.5" />
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" name="email" value="{{ p.email or '' }}" />
+            </div>
+            <div class="form-group">
+              <label>Telefono</label>
+              <input type="text" name="telefono" value="{{ p.telefono or '' }}" />
+            </div>
+            <div class="form-group flex-2">
+              <label>Note</label>
+              <input type="text" name="note" value="{{ p.note or '' }}" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-sm btn-primary">Aggiorna</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleEdit('ep-{{ p.id }}')">Annulla</button>
+          </div>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-msg">Nessun partner ancora. Aggiungine uno con il pulsante qui sopra.</p>
+{% endif %}
+
+<script>
+function toggleForm(id) { document.getElementById(id).classList.toggle('hidden'); }
+function toggleEdit(id) { document.getElementById(id).classList.toggle('hidden'); }
+</script>
+{% endblock %}

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preventivo — {{ contratto.cliente_nome }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #1a202c; font-size: 14px; background: #fff; }
+    .page { max-width: 800px; margin: 0 auto; padding: 2.5rem 2rem; }
+
+    /* Header */
+    .doc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2.5rem; border-bottom: 3px solid #4f46e5; padding-bottom: 1rem; }
+    .brand { font-size: 1.8rem; font-weight: 800; color: #4f46e5; }
+    .brand-sub { font-size: 0.75rem; color: #718096; margin-top: 0.2rem; }
+    .doc-info { text-align: right; }
+    .doc-info h2 { font-size: 1.1rem; color: #4f46e5; margin-bottom: 0.3rem; }
+    .doc-info p { font-size: 0.85rem; color: #718096; }
+
+    /* Client section */
+    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
+    .party h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; margin-bottom: 0.4rem; }
+    .party p { font-size: 0.9rem; line-height: 1.7; }
+
+    /* Service */
+    .service-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.2rem 1.5rem; margin-bottom: 2rem; }
+    .service-box h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; margin-bottom: 0.5rem; }
+    .service-box p { font-size: 1rem; font-weight: 600; }
+
+    /* Payment table */
+    h2 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.8rem; color: #1a202c; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+    thead th { background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.6rem 0.8rem; text-align: left; font-size: 0.8rem; text-transform: uppercase; color: #718096; }
+    tbody td { border: 1px solid #e2e8f0; padding: 0.7rem 0.8rem; font-size: 0.9rem; }
+    tfoot td { border: 1px solid #e2e8f0; padding: 0.7rem 0.8rem; font-weight: 700; background: #eef2ff; color: #4f46e5; }
+
+    /* Total */
+    .total-box { background: #eef2ff; border-left: 4px solid #4f46e5; padding: 1rem 1.5rem; margin-bottom: 2.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .total-box .label { font-size: 0.85rem; color: #4f46e5; font-weight: 600; }
+    .total-box .amount { font-size: 1.8rem; font-weight: 800; color: #4f46e5; }
+
+    /* Signatures */
+    .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
+    .sig-block p { font-size: 0.8rem; color: #718096; margin-bottom: 0.3rem; }
+    .sig-line { border-bottom: 1px solid #1a202c; margin-top: 3rem; }
+    .sig-name { font-size: 0.8rem; margin-top: 0.4rem; }
+
+    /* Notes */
+    .notes { font-size: 0.85rem; color: #718096; margin-bottom: 2rem; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 6px; }
+
+    /* Print button */
+    .print-bar { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+    @media print {
+      .print-bar { display: none; }
+      .page { padding: 0; }
+      body { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="print-bar">
+    <button onclick="window.print()" style="padding:0.5rem 1.2rem;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">🖨 Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:0.5rem 1.2rem;background:#e2e8f0;color:#1a202c;border:none;border-radius:6px;cursor:pointer;font-weight:600;">← Chiudi</button>
+  </div>
+
+  <div class="doc-header">
+    <div>
+      <div class="brand">⚡ Thrive X</div>
+      <div class="brand-sub">Consulenza AI &amp; Marketing</div>
+    </div>
+    <div class="doc-info">
+      <h2>PREVENTIVO / PROPOSTA</h2>
+      <p>Data: {{ oggi }}</p>
+      <p>Rif: TX-{{ contratto.id }}-{{ contratto.data_inizio[:4] }}</p>
+    </div>
+  </div>
+
+  <div class="parties">
+    <div class="party">
+      <h3>Fornitore</h3>
+      <p><strong>Thrive X</strong><br />
+      Consulenza AI &amp; Marketing</p>
+    </div>
+    <div class="party">
+      <h3>Cliente</h3>
+      <p><strong>{{ contratto.cliente_nome }}</strong>
+      {% if contratto.cliente_email %}<br />{{ contratto.cliente_email }}{% endif %}
+      {% if contratto.cliente_tel %}<br />{{ contratto.cliente_tel }}{% endif %}</p>
+    </div>
+  </div>
+
+  <div class="service-box">
+    <h3>Oggetto della Proposta</h3>
+    <p>{{ contratto.titolo }}</p>
+    {% if contratto.servizio %}<p style="color:#718096;font-size:0.9rem;margin-top:0.3rem;font-weight:400;">{{ contratto.servizio }}</p>{% endif %}
+  </div>
+
+  {% if contratto.note %}
+  <div class="notes">
+    <strong>Note:</strong> {{ contratto.note }}
+  </div>
+  {% endif %}
+
+  <h2>Piano di Pagamento</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Descrizione</th>
+        <th>Scadenza</th>
+        <th style="text-align:right">Importo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rate %}
+      <tr>
+        <td>{{ r.numero_rata }}</td>
+        <td>{{ r.note or '—' }}</td>
+        <td>{{ r.data_scadenza or '—' }}</td>
+        <td style="text-align:right">&euro; {{ (r.importo)|format_eur }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">TOTALE</td>
+        <td style="text-align:right">&euro; {{ (contratto.importo_totale)|format_eur }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="total-box">
+    <span class="label">Valore Totale Contratto</span>
+    <span class="amount">&euro; {{ (contratto.importo_totale)|format_eur }}</span>
+  </div>
+
+  <div class="signatures">
+    <div class="sig-block">
+      <p>Per accettazione — <strong>Cliente</strong></p>
+      <div class="sig-line"></div>
+      <p class="sig-name">{{ contratto.cliente_nome }}</p>
+    </div>
+    <div class="sig-block">
+      <p>Per <strong>Thrive X</strong></p>
+      <div class="sig-line"></div>
+      <p class="sig-name">Firma e timbro</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

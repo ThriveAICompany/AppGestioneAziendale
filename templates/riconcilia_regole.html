@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Regole di Riconciliazione{% endblock %}
+{% block content %}
+<style>
+  .regole-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+  .regole-table th { background:var(--surface); border:1px solid var(--border);
+    padding:0.5rem 0.75rem; font-weight:600; text-align:left; }
+  .regole-table td { border:1px solid var(--border); padding:0.45rem 0.75rem; vertical-align:middle; }
+  .chip { display:inline-block; font-size:0.72rem; padding:1px 7px; border-radius:4px;
+    background:#f0f0f0; border:1px solid #ddd; color:#666; }
+</style>
+
+<div class="page-header">
+  <h1 class="page-title">Regole di Riconciliazione</h1>
+  <div class="actions">
+    <a href="javascript:history.back()" class="btn btn-secondary">← Indietro</a>
+  </div>
+</div>
+
+<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1.25rem">
+  Le regole permettono di riconoscere automaticamente le uscite CSV con descrizioni generiche
+  e associarle al costo corretto.
+</p>
+
+<!-- Form nuova regola -->
+<div class="form-card" style="margin-bottom:1.5rem">
+  <h3 style="margin:0 0 1rem;font-size:0.95rem">Aggiungi regola</h3>
+  <form method="POST" action="{{ url_for('riconciliazione_regola_nuova') }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Parola chiave nella descrizione *</label>
+        <input type="text" name="pattern" required placeholder="Es. pagoPA, commissione, canone">
+      </div>
+      <div class="form-group">
+        <label>Nome costo da creare *</label>
+        <input type="text" name="nome_costo" required placeholder="Es. Pagamenti pagoPA">
+      </div>
+      <div class="form-group">
+        <label>Categoria</label>
+        <select name="categoria">
+          {% for c in categorie %}
+          <option value="{{ c }}">{{ c|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Importo esatto (lascia vuoto = qualsiasi)</label>
+        <input type="number" name="importo_esatto" step="0.01" min="0" placeholder="Es. 1.50">
+      </div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+        <input type="checkbox" name="raggruppa_per_mese" value="1">
+        Raggruppa più occorrenze dello stesso mese in un unico costo (es. commissioni)
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Aggiungi regola</button>
+    </div>
+  </form>
+</div>
+
+<!-- Lista regole -->
+{% if regole %}
+<table class="regole-table">
+  <thead><tr>
+    <th>Parola chiave</th>
+    <th>Crea come</th>
+    <th>Categoria</th>
+    <th>Importo esatto</th>
+    <th>Raggruppa/mese</th>
+    <th></th>
+  </tr></thead>
+  <tbody>
+  {% for r in regole %}
+  <tr>
+    <td><code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">{{ r.pattern }}</code></td>
+    <td><strong>{{ r.nome_costo }}</strong></td>
+    <td><span class="chip">{{ r.categoria }}</span></td>
+    <td>{% if r.importo_esatto %}€ {{ "%.2f"|format(r.importo_esatto) }}{% else %}<span style="color:#aaa">qualsiasi</span>{% endif %}</td>
+    <td>{% if r.raggruppa_per_mese %}<span style="color:#2e7d32">✓ Sì</span>{% else %}No{% endif %}</td>
+    <td>
+      <form method="POST" action="{{ url_for('riconciliazione_regola_elimina', rid=r.id) }}"
+            onsubmit="return confirm('Eliminare questa regola?')">
+        <button type="submit" class="btn" style="padding:0.25rem 0.6rem;font-size:0.78rem;background:#fff5f5;border-color:#ef9a9a;color:#c62828">Elimina</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div style="font-size:0.85rem;color:var(--text-muted)">Nessuna regola configurata.</div>
+{% endif %}
+{% endblock %}

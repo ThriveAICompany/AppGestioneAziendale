@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- ── Page Header ── -->
+<div class="page-header">
+  <div>
+    <p class="page-greeting">Bentornato 👋</p>
+    <h1 class="page-title">Dashboard</h1>
+  </div>
+</div>
+
+<!-- ── Alert strip ── -->
+{% if rate_in_scadenza %}
+<div class="alert-strip alert-strip-teal">
+  <i data-lucide="clock"></i>
+  <div>
+    <strong>{{ rate_in_scadenza|length }} rate in scadenza</strong>
+    <span> nei prossimi 30 giorni</span>
+  </div>
+  <a href="{{ url_for('ricavi') }}" class="alert-action">Vedi tutte →</a>
+</div>
+{% endif %}
+
+<!-- ── KPI Cards ── -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">
+  <span style="font-size:.82rem;font-weight:600;color:var(--text-muted)">Entrate &amp; Uscite per anno:</span>
+  <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+    {% for a in anni_mov %}
+    <a href="{{ url_for('dashboard', anno_kpi=a) }}"
+       style="padding:.25rem .65rem;border-radius:999px;font-size:.8rem;font-weight:600;text-decoration:none;
+              background:{% if a == anno_kpi %}var(--primary){% else %}var(--surface){% endif %};
+              color:{% if a == anno_kpi %}#fff{% else %}var(--text-muted){% endif %};
+              border:1px solid {% if a == anno_kpi %}var(--primary){% else %}var(--border){% endif %}">
+      {{ a }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+<div class="kpi-grid">
+
+  <div class="kpi-card" style="position:relative">
+    <div class="kpi-label">
+      Saldo Conto
+      <div style="display:flex;align-items:center;gap:.4rem;margin-left:auto">
+        <button onclick="document.getElementById('form-saldo-iniziale').classList.toggle('hidden')"
+                title="Imposta saldo di partenza"
+                style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:0;line-height:1">
+          <i data-lucide="pencil" style="width:14px;height:14px"></i>
+        </button>
+        <div class="kpi-icon"><i data-lucide="wallet"></i></div>
+      </div>
+    </div>
+    <div class="kpi-value {% if saldo < 0 %}negativo{% endif %}">
+      € {{ saldo|format_eur }}
+    </div>
+    <div class="kpi-trend">
+      {% if saldo >= 0 %}
+        <span class="trend-badge trend-up"><i data-lucide="trending-up"></i> Positivo</span>
+      {% else %}
+        <span class="trend-badge trend-down"><i data-lucide="trending-down"></i> Negativo</span>
+      {% endif %}
+      <span class="trend-sub">al {{ saldo_data_limite }}</span>
+    </div>
+
+    <!-- Mini-form saldo iniziale -->
+    <div id="form-saldo-iniziale" class="hidden"
+         style="margin-top:.8rem;padding-top:.75rem;border-top:1px solid var(--border)">
+      <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.4rem;font-weight:600">
+        Saldo di partenza (prima di qualsiasi movimento registrato)
+      </div>
+      <form action="{{ url_for('imposta_saldo_iniziale') }}" method="POST"
+            style="display:flex;gap:.4rem;align-items:center">
+        <input type="hidden" name="anno_kpi" value="{{ anno_kpi }}">
+        <input type="number" name="saldo_iniziale" step="0.01"
+               value="{{ saldo_iniziale }}"
+               style="flex:1;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;min-width:0">
+        <button type="submit" class="btn btn-primary" style="padding:.3rem .7rem;font-size:.82rem;white-space:nowrap">Salva</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">
+      Entrate Totali
+      <div class="kpi-icon"><i data-lucide="circle-arrow-down"></i></div>
+    </div>
+    <div class="kpi-value">€ {{ totale_entrate|format_eur }}</div>
+    <div class="kpi-trend">
+      <span class="trend-badge trend-up"><i data-lucide="arrow-up"></i> Entrate</span>
+      <span class="trend-sub">{{ anno_kpi }}</span>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">
+      Uscite Totali
+      <div class="kpi-icon kpi-icon-red"><i data-lucide="circle-arrow-up"></i></div>
+    </div>
+    <div class="kpi-value negativo">€ {{ totale_uscite|format_eur }}</div>
+    <div class="kpi-trend">
+      <span class="trend-badge trend-down"><i data-lucide="arrow-down"></i> Uscite</span>
+      <span class="trend-sub">{{ anno_kpi }}</span>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">
+      Clienti Attivi
+      <div class="kpi-icon"><i data-lucide="users"></i></div>
+    </div>
+    <div class="kpi-value">{{ num_clienti }}</div>
+    <div class="kpi-trend">
+      {% if rate_in_scadenza %}
+        <span class="trend-badge trend-neutral"><i data-lucide="calendar-clock"></i> {{ rate_in_scadenza|length }} in scad.</span>
+      {% else %}
+        <span class="trend-badge trend-up"><i data-lucide="check"></i> Attivi</span>
+      {% endif %}
+      <span class="trend-sub">con contratto</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Cashflow + MRR/Pipeline ── -->
+<div class="dash-grid">
+
+  <!-- Cashflow chart -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="card-header">
+      <div class="card-title">Flussi di Cassa</div>
+      <div class="year-selector">
+        {% for y in anni_cashflow %}
+        <button class="year-btn{% if y == current_year %} active{% endif %}" data-year="{{ y }}">{{ y }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="padding:0 1.25rem 1.25rem">
+      <canvas id="cashflowChart" style="max-height:220px"></canvas>
+    </div>
+  </div>
+
+  <!-- Right: MRR se disponibile, poi pipeline -->
+  <div style="display:flex;flex-direction:column;gap:1rem">
+
+    {% if abbonamenti_mrr %}
+    <div class="card">
+      <div class="kpi-label" style="margin-bottom:1rem">
+        Ricavi Ricorrenti
+        <div class="kpi-icon"><i data-lucide="refresh-cw"></i></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem">
+        <div>
+          <div class="kpi-label" style="margin-bottom:0.35rem">MRR Netto</div>
+          <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.04em;color:var(--primary)">€ {{ mrr_netto|format_eur }}</div>
+        </div>
+        <div>
+          <div class="kpi-label" style="margin-bottom:0.35rem">ARR</div>
+          <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.04em;color:var(--text)">€ {{ arr|format_eur }}</div>
+        </div>
+        <div>
+          <div class="kpi-label" style="margin-bottom:0.35rem">Abbonamenti</div>
+          <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.04em;color:var(--text)">{{ abbonamenti_mrr|length }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if pipeline_counts %}
+    <div class="card" style="padding:0;overflow:hidden;flex:1">
+      <div class="card-header">
+        <div class="card-title">Pipeline</div>
+        <span class="badge badge-teal">€ {{ valore_pipeline|format_eur }}</span>
+      </div>
+      {% set stage_labels = {'lead': 'Lead', 'trattativa': 'Trattativa', 'firmato': 'Firmato', 'consegnato': 'Consegnato', 'perso': 'Perso'} %}
+      {% for row in pipeline_counts %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 1.4rem;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:0.6rem">
+          <span class="badge stage-badge-{{ row.stato }}">{{ stage_labels.get(row.stato, row.stato) }}</span>
+        </div>
+        <div style="display:flex;gap:1.25rem;align-items:center">
+          <span style="font-size:0.88rem;font-weight:700;color:var(--text)">{{ row.cnt }}</span>
+          <span style="font-size:0.78rem;color:var(--text-muted)">€ {{ "%.0f"|format(row.valore) }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not abbonamenti_mrr and not pipeline_counts %}
+    <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:140px">
+      <p class="empty-msg" style="text-align:center;padding:0">
+        Nessun dato pipeline.<br>
+        <a href="{{ url_for('ricavi') }}">Aggiungi ricavi</a>
+      </p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+
+<!-- ── Dettaglio cashflow (tabella) ── -->
+<div class="card" style="padding:0;overflow:hidden;margin-top:1rem">
+  <div class="card-header">
+    <div class="card-title">Dettaglio Flussi di Cassa</div>
+  </div>
+  <div class="cashflow-table-wrap" style="box-shadow:none;border:none;border-radius:0">
+    <table class="cashflow-table">
+      <thead>
+        <tr>
+          <th class="cf-col-label"></th>
+          <th>Gen</th><th>Feb</th><th>Mar</th><th>Apr</th><th>Mag</th><th>Giu</th>
+          <th>Lug</th><th>Ago</th><th>Set</th><th>Ott</th><th>Nov</th><th>Dic</th>
+          <th class="cf-col-total">Totale</th>
+        </tr>
+      </thead>
+      <tbody id="cashflowTbody">
+        <tr><td colspan="14" class="cf-loading">Caricamento...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Abbonamenti attivi ── -->
+{% if abbonamenti_mrr %}
+<div class="card" style="padding:0;overflow:hidden;margin-top:1rem">
+  <div class="card-header">
+    <div class="card-title">
+      Abbonamenti Attivi
+      <span class="badge-count">{{ abbonamenti_mrr|length }}</span>
+    </div>
+  </div>
+  <table class="table" style="box-shadow:none;border:none;border-radius:0">
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Contratto</th>
+        <th>Rata / mese</th>
+        <th>Rate rimaste</th>
+        <th>Scade il</th>
+        <th>Valore residuo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in abbonamenti_mrr %}
+      <tr>
+        <td><strong>{{ a.cliente_nome }}</strong></td>
+        <td>
+          <span style="font-weight:500">{{ a.titolo }}</span>
+        </td>
+        <td class="positivo"><strong>€ {{ a.rata_mensile|format_eur }}</strong></td>
+        <td>{{ a.rate_rimanenti }}</td>
+        <td {% if a.fine_contratto and a.fine_contratto <= in_90 %}class="negativo"{% endif %}>
+          {{ a.fine_contratto or "—" }}
+        </td>
+        <td>€ {{ (a.rata_mensile * a.rate_rimanenti)|format_eur }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2"><strong>Totale MRR mensile (netto)</strong></td>
+        <td class="positivo"><strong>€ {{ mrr_netto|format_eur }}</strong></td>
+        <td colspan="3"></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endif %}
+
+<!-- ── JavaScript cashflow ── -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const MESI = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  let cfChart = null;
+  const openGroups = new Set();
+
+  function fmtEur(v) {
+    if (v === null || v === undefined) return '—';
+    const abs = Math.abs(v);
+    const s = abs % 1 === 0
+      ? abs.toLocaleString('it-IT', {minimumFractionDigits: 0, maximumFractionDigits: 0})
+      : abs.toLocaleString('it-IT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    return (v < 0 ? '-' : '') + s;
+  }
+
+  function renderChart(mesi) {
+    const entrate = mesi.map(m => m.entrate);
+    const uscite  = mesi.map(m => m.uscite);
+    let cum = 0;
+    const saldo = mesi.map(m => { cum += m.variazione; return Math.round(cum * 100) / 100; });
+
+    if (cfChart) cfChart.destroy();
+    const ctx = document.getElementById('cashflowChart').getContext('2d');
+    cfChart = new Chart(ctx, {
+      data: {
+        labels: MESI,
+        datasets: [
+          {
+            type: 'bar', label: 'Entrate', data: entrate, order: 2,
+            backgroundColor: '#14A89E',
+            borderRadius: 6, borderSkipped: false,
+          },
+          {
+            type: 'bar', label: 'Uscite', data: uscite, order: 2,
+            backgroundColor: 'rgba(224,82,82,0.75)',
+            borderRadius: 6, borderSkipped: false,
+          },
+          {
+            type: 'line', label: 'Saldo cumulativo', data: saldo, order: 1,
+            borderColor: '#0f1a19', backgroundColor: 'transparent',
+            pointBackgroundColor: '#0f1a19', pointRadius: 3, tension: 0.3, yAxisID: 'y1',
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'top', align: 'end',
+            labels: { boxWidth: 10, boxHeight: 10, borderRadius: 3, usePointStyle: true, pointStyle: 'circle', font: { size: 11, family: 'Inter' }, color: '#7a9190' }
+          },
+          tooltip: {
+            bodyFont: { family: 'Inter' }, titleFont: { family: 'Inter' },
+            callbacks: { label: c => ` ${c.dataset.label}: € ${fmtEur(c.parsed.y)}` }
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11, family: 'Inter' }, color: '#b0c4c3' } },
+          y:  { beginAtZero: true, grid: { color: '#edf5f4' }, ticks: { font: { size: 11, family: 'Inter' }, color: '#b0c4c3', callback: v => '€ ' + fmtEur(v) } },
+          y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 11, family: 'Inter' }, color: '#b0c4c3', callback: v => '€ ' + fmtEur(v) } },
+        },
+      },
+    });
+  }
+
+  function renderTable(mesi) {
+    const tbody = document.getElementById('cashflowTbody');
+    openGroups.clear();
+
+    const totE = mesi.reduce((s, m) => s + m.entrate, 0);
+    const totU = mesi.reduce((s, m) => s + m.uscite, 0);
+    const totV = totE - totU;
+
+    const allECat = [...new Set(mesi.flatMap(m => Object.keys(m.entrate_cat)))].sort();
+    const allUCat = [...new Set(mesi.flatMap(m => Object.keys(m.uscite_cat)))].sort();
+
+    function varClass(v) { return v >= 0 ? 'positivo' : 'negativo'; }
+    function cells(fn) { return mesi.map((m, i) => `<td>${fn(m, i)}</td>`).join(''); }
+
+    let html = '';
+
+    html += `<tr class="cf-row cf-variazione">
+      <td class="cf-label">Variazione saldo</td>
+      ${cells(m => `<span class="${varClass(m.variazione)}">${fmtEur(m.variazione)}</span>`)}
+      <td class="cf-total ${varClass(totV)}">${fmtEur(totV)}</td>
+    </tr>`;
+
+    html += `<tr class="cf-row cf-group-header" onclick="cfToggle('entrate')">
+      <td class="cf-label"><span class="cf-arrow" id="cf-arrow-entrate">&#9656;</span> Entrate</td>
+      ${cells(m => `<span class="positivo">${fmtEur(m.entrate)}</span>`)}
+      <td class="cf-total positivo">${fmtEur(totE)}</td>
+    </tr>`;
+
+    allECat.forEach(cat => {
+      const tot = mesi.reduce((s, m) => s + (m.entrate_cat[cat] || 0), 0);
+      html += `<tr class="cf-sub-row cf-group-entrate" style="display:none">
+        <td class="cf-sub-label">${cat}</td>
+        ${cells(m => m.entrate_cat[cat] ? fmtEur(m.entrate_cat[cat]) : '<span class="cf-empty">—</span>')}
+        <td class="cf-total">${fmtEur(tot)}</td>
+      </tr>`;
+    });
+
+    html += `<tr class="cf-row cf-group-header" onclick="cfToggle('uscite')">
+      <td class="cf-label"><span class="cf-arrow" id="cf-arrow-uscite">&#9656;</span> Uscite</td>
+      ${cells(m => `<span class="negativo">${fmtEur(m.uscite)}</span>`)}
+      <td class="cf-total negativo">${fmtEur(totU)}</td>
+    </tr>`;
+
+    allUCat.forEach(cat => {
+      const tot = mesi.reduce((s, m) => s + (m.uscite_cat[cat] || 0), 0);
+      html += `<tr class="cf-sub-row cf-group-uscite" style="display:none">
+        <td class="cf-sub-label">${cat}</td>
+        ${cells(m => m.uscite_cat[cat] ? fmtEur(m.uscite_cat[cat]) : '<span class="cf-empty">—</span>')}
+        <td class="cf-total">${fmtEur(tot)}</td>
+      </tr>`;
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  window.cfToggle = function(group) {
+    const rows  = document.querySelectorAll('.cf-group-' + group);
+    const arrow = document.getElementById('cf-arrow-' + group);
+    if (openGroups.has(group)) {
+      rows.forEach(r => r.style.display = 'none');
+      openGroups.delete(group);
+      arrow.innerHTML = '&#9656;';
+    } else {
+      rows.forEach(r => r.style.display = '');
+      openGroups.add(group);
+      arrow.innerHTML = '&#9662;';
+    }
+  };
+
+  async function loadCashflow(anno) {
+    document.getElementById('cashflowTbody').innerHTML =
+      '<tr><td colspan="14" class="cf-loading">Caricamento...</td></tr>';
+    const resp = await fetch('/api/cashflow/' + anno);
+    const data = await resp.json();
+    renderChart(data.mesi);
+    renderTable(data.mesi);
+    document.querySelectorAll('.year-btn').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.year) === anno);
+    });
+  }
+
+  document.querySelectorAll('.year-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadCashflow(parseInt(btn.dataset.year)));
+  });
+
+  loadCashflow({{ current_year }});
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Pipeline CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Pipeline CRM</h1>
+  <button class="btn btn-primary" onclick="toggleForm('form-nuova-opp')">+ Nuova Opportunità</button>
+</div>
+
+<!-- Form nuova opportunità -->
+<div id="form-nuova-opp" class="form-card hidden">
+  <h3>Aggiungi Opportunità</h3>
+  <form action="{{ url_for('nuova_opportunita') }}" method="POST">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Azienda / Cliente *</label>
+        <input type="text" name="nome_azienda" required placeholder="Es. Acme Srl" />
+      </div>
+      <div class="form-group">
+        <label>Contatto</label>
+        <input type="text" name="contatto" placeholder="Nome referente" />
+      </div>
+      <div class="form-group">
+        <label>Telefono</label>
+        <input type="text" name="telefono" placeholder="+39..." />
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="email@azienda.it" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label>Servizio / Prodotto</label>
+        <input type="text" name="servizio" placeholder="Es. Company Brain, Agente Vocale..." />
+      </div>
+      <div class="form-group">
+        <label>Valore Stimato (€)</label>
+        <input type="number" name="valore_stimato" step="any" min="0" placeholder="0" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Sorgente</label>
+        <select name="sorgente">
+          <option value="evento">Evento</option>
+          <option value="commerciale">Commerciale</option>
+          <option value="partner">Partner</option>
+          <option value="passaparola">Passaparola</option>
+          <option value="web">Web / Social</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Partner / Commerciale</label>
+        <select name="partner_id">
+          <option value="">— Nessuno —</option>
+          {% for p in partners %}
+          <option value="{{ p.id }}">{{ p.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group flex-2">
+        <label>Note</label>
+        <input type="text" name="note" placeholder="Appunti..." />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Aggiungi</button>
+      <button type="button" class="btn btn-secondary" onclick="toggleForm('form-nuova-opp')">Annulla</button>
+    </div>
+  </form>
+</div>
+
+<!-- Kanban Board -->
+<div class="kanban-board">
+  {% set stage_colors = {'lead': 'stage-lead', 'trattativa': 'stage-trattativa', 'firmato': 'stage-firmato', 'consegnato': 'stage-consegnato', 'perso': 'stage-perso'} %}
+  {% set stage_next = {'lead': 'trattativa', 'trattativa': 'firmato', 'firmato': 'consegnato', 'consegnato': 'perso'} %}
+  {% set stage_prev = {'trattativa': 'lead', 'firmato': 'trattativa', 'consegnato': 'firmato', 'perso': 'consegnato'} %}
+
+  {% for stato, label in stadi %}
+  <div class="kanban-col">
+    <div class="kanban-header {{ stage_colors[stato] }}">
+      <span>{{ label }}</span>
+      <span class="kanban-count">{{ per_stadio[stato]|length }}</span>
+    </div>
+    <div class="kanban-cards">
+      {% for o in per_stadio[stato] %}
+      <div class="kanban-card">
+        <div class="kc-top">
+          <strong>{{ o.nome_azienda }}</strong>
+          {% if o.valore_stimato %}
+          <span class="kc-value">&euro; {{ "%.0f"|format(o.valore_stimato) }}</span>
+          {% endif %}
+        </div>
+        {% if o.servizio %}<div class="kc-service">{{ o.servizio }}</div>{% endif %}
+        {% if o.contatto %}<div class="kc-meta">👤 {{ o.contatto }}</div>{% endif %}
+        <div class="kc-meta">
+          <span class="badge badge-sorgente-{{ o.sorgente }}">{{ o.sorgente }}</span>
+          {% if o.partner_nome %}<span class="kc-partner">via {{ o.partner_nome }}</span>{% endif %}
+        </div>
+        <div class="kc-date">{{ o.data_creazione }}</div>
+        <div class="kc-actions">
+          <!-- Move forward -->
+          {% if stato in stage_next %}
+          <form action="{{ url_for('aggiorna_stato_opportunita', oid=o.id) }}" method="POST" style="display:inline">
+            <input type="hidden" name="stato" value="{{ stage_next[stato] }}">
+            <button class="btn btn-xs btn-primary" title="Avanza">→</button>
+          </form>
+          {% endif %}
+          <!-- Move back -->
+          {% if stato in stage_prev %}
+          <form action="{{ url_for('aggiorna_stato_opportunita', oid=o.id) }}" method="POST" style="display:inline">
+            <input type="hidden" name="stato" value="{{ stage_prev[stato] }}">
+            <button class="btn btn-xs btn-secondary" title="Indietro">←</button>
+          </form>
+          {% endif %}
+          <!-- Edit -->
+          <button class="btn btn-xs btn-secondary" onclick="toggleEdit('opp-{{ o.id }}')">✏</button>
+          <!-- Delete -->
+          <form action="{{ url_for('elimina_opportunita', oid=o.id) }}" method="POST" style="display:inline"
+                onsubmit="return confirm('Eliminare {{ o.nome_azienda }}?')">
+            <button class="btn btn-xs btn-danger">✕</button>
+          </form>
+        </div>
+
+        <!-- Edit form (hidden) -->
+        <div id="opp-{{ o.id }}" class="kc-edit hidden">
+          <form action="{{ url_for('modifica_opportunita', oid=o.id) }}" method="POST">
+            <div class="form-group">
+              <label>Azienda</label>
+              <input type="text" name="nome_azienda" value="{{ o.nome_azienda }}" required />
+            </div>
+            <div class="form-group">
+              <label>Contatto</label>
+              <input type="text" name="contatto" value="{{ o.contatto or '' }}" />
+            </div>
+            <div class="form-group">
+              <label>Servizio</label>
+              <input type="text" name="servizio" value="{{ o.servizio or '' }}" />
+            </div>
+            <div class="form-group">
+              <label>Valore (€)</label>
+              <input type="number" name="valore_stimato" value="{{ o.valore_stimato or '' }}" step="any" />
+            </div>
+            <div class="form-group">
+              <label>Sorgente</label>
+              <select name="sorgente">
+                {% for s in ['evento','commerciale','partner','passaparola','web'] %}
+                <option value="{{ s }}" {% if o.sorgente == s %}selected{% endif %}>{{ s.capitalize() }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Partner</label>
+              <select name="partner_id">
+                <option value="">— Nessuno —</option>
+                {% for p in partners %}
+                <option value="{{ p.id }}" {% if o.partner_id == p.id %}selected{% endif %}>{{ p.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Note</label>
+              <input type="text" name="note" value="{{ o.note or '' }}" />
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" name="email" value="{{ o.email or '' }}" />
+            </div>
+            <div class="form-group">
+              <label>Telefono</label>
+              <input type="text" name="telefono" value="{{ o.telefono or '' }}" />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-sm btn-primary">Salva</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="toggleEdit('opp-{{ o.id }}')">Annulla</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not per_stadio[stato] %}
+      <div class="kanban-empty">Nessuna opportunità</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+function toggleForm(id) { document.getElementById(id).classList.toggle('hidden'); }
+function toggleEdit(id) { document.getElementById(id).classList.toggle('hidden'); }
+</script>
+{% endblock %}

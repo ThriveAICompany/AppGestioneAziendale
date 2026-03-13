@@ -1,0 +1,713 @@
+{% extends "base.html" %}
+{% block title %}CFO Virtuale{% endblock %}
+
+{% block content %}
+<style>
+/* ── CFO-specific styles ── */
+.cfo-header {
+  display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;
+}
+.cfo-header h1 { margin: 0; }
+.cfo-badge {
+  background: linear-gradient(135deg,var(--primary),#8b5cf6);
+  color:#fff; font-size:0.7rem; font-weight:700; letter-spacing:.05em;
+  padding:.25rem .6rem; border-radius:999px; text-transform:uppercase;
+}
+
+/* health score */
+.health-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 1rem;
+}
+.health-score-wrap { display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; }
+.health-circle {
+  width:90px; height:90px; border-radius:50%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-weight:800; font-size:1.6rem; flex-shrink:0;
+  box-shadow: var(--shadow-md);
+}
+.health-circle.verde  { background:linear-gradient(135deg,#10b981,#059669); color:#fff; }
+.health-circle.giallo { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+.health-circle.rosso  { background:linear-gradient(135deg,#ef4444,#dc2626); color:#fff; }
+.health-circle span   { font-size:0.65rem; font-weight:600; opacity:.85; margin-top:-2px; }
+
+.health-bars { flex:1; display:flex; flex-direction:column; gap:.55rem; min-width:200px; }
+.hbar-row { display:flex; align-items:center; gap:.6rem; font-size:.82rem; }
+.hbar-label { width:140px; color:var(--text-muted); flex-shrink:0; }
+.hbar-track { flex:1; height:7px; background:var(--border); border-radius:999px; overflow:hidden; }
+.hbar-fill  { height:100%; border-radius:999px; transition:width .5s ease; }
+.hbar-fill.ottimo    { background:var(--green); }
+.hbar-fill.buono     { background:#3b82f6; }
+.hbar-fill.attenzione{ background:var(--orange); }
+.hbar-fill.critico   { background:var(--red); }
+.hbar-val { font-weight:600; font-size:.8rem; white-space:nowrap; }
+
+/* KPI grid CFO — 4 colonne come dashboard */
+.kpi-grid { grid-template-columns: repeat(4, 1fr); }
+
+/* alerts */
+.alert-cfo {
+  display:flex; gap:.8rem; align-items:flex-start;
+  padding:.9rem 1.1rem; border-radius:var(--radius-sm);
+  margin-bottom:.6rem; font-size:.88rem;
+}
+.alert-cfo.danger  { background:#fff5f5; border:1px solid #feb2b2; }
+.alert-cfo.warning { background:#fffbeb; border:1px solid #fcd34d; }
+.alert-cfo.info    { background:#eff6ff; border:1px solid #bfdbfe; }
+.alert-cfo.success { background:#f0fdf4; border:1px solid #bbf7d0; }
+.alert-cfo .icona  { font-size:1.2rem; flex-shrink:0; line-height:1.3; }
+.alert-cfo .a-title{ font-weight:700; margin-bottom:.1rem; }
+.alert-cfo .a-desc { color:var(--text-muted); }
+
+/* cashflow table */
+.cf-table td, .cf-table th { padding:.55rem .7rem; }
+.cf-neg { color:var(--red); font-weight:600; }
+.cf-pos { color:var(--green); font-weight:600; }
+.cf-muted { color:var(--text-muted); }
+
+/* chat */
+.chat-wrap {
+  background:var(--surface);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  display:flex; flex-direction:column;
+  height:460px;
+}
+.chat-header {
+  padding:.9rem 1.2rem;
+  border-bottom:1px solid var(--border);
+  font-weight:700;
+  background:linear-gradient(135deg,var(--primary),#8b5cf6);
+  color:#fff;
+  border-radius:var(--radius) var(--radius) 0 0;
+  display:flex; align-items:center; gap:.5rem;
+}
+.chat-messages {
+  flex:1; overflow-y:auto; padding:1rem;
+  display:flex; flex-direction:column; gap:.7rem;
+}
+.msg { max-width:82%; padding:.65rem .9rem; border-radius:var(--radius-sm); font-size:.88rem; line-height:1.55; }
+.msg.user    { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:3px; }
+.msg.bot     { align-self:flex-start; background:#f1f5f9; color:var(--text); border-bottom-left-radius:3px; white-space:pre-wrap; }
+.msg.typing  { align-self:flex-start; background:#f1f5f9; color:var(--text-muted); font-style:italic; border-bottom-left-radius:3px; }
+.chat-input-row {
+  display:flex; gap:.5rem; padding:.8rem 1rem;
+  border-top:1px solid var(--border);
+}
+.chat-input-row input {
+  flex:1; border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:.55rem .8rem; font-size:.9rem; outline:none;
+  transition: border-color .2s;
+}
+.chat-input-row input:focus { border-color:var(--primary); }
+.chat-input-row button {
+  background:var(--primary); color:#fff; border:none;
+  border-radius:var(--radius-sm); padding:.55rem 1.1rem;
+  font-weight:600; font-size:.88rem; cursor:pointer;
+  transition:background .2s;
+}
+.chat-input-row button:hover { background:var(--primary-hover); }
+.chat-no-key {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:.5rem; color:var(--text-muted); padding:2rem; text-align:center;
+}
+.chat-no-key code { background:#f1f5f9; padding:.2rem .5rem; border-radius:4px; font-size:.82rem; }
+
+/* scenario badge */
+.badge-ottimistico {
+  background:#ede9fe; color:#7c3aed; font-size:.72rem; font-weight:600;
+  padding:.1rem .45rem; border-radius:999px;
+}
+
+/* Piano d'Azione */
+.azione-card {
+  display:flex; align-items:flex-start; gap:.8rem;
+  background:var(--surface); border-radius:var(--radius-sm);
+  padding:.85rem 1rem; margin-bottom:.55rem;
+  box-shadow:var(--shadow-sm); border-left:4px solid transparent;
+}
+.azione-card.alta   { border-color:var(--red); }
+.azione-card.media  { border-color:var(--orange); }
+.azione-card.info   { border-color:var(--green); }
+.azione-icona       { font-size:1.3rem; flex-shrink:0; line-height:1.3; }
+.azione-area        { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:.1rem; }
+.azione-titolo      { font-weight:700; font-size:.9rem; margin-bottom:.15rem; }
+.azione-det         { font-size:.82rem; color:var(--text-muted); }
+.azione-badge-alta  { background:#fee2e2; color:#b91c1c; font-size:.68rem; font-weight:700; padding:.1rem .4rem; border-radius:999px; }
+.azione-badge-media { background:#fef3c7; color:#92400e; font-size:.68rem; font-weight:700; padding:.1rem .4rem; border-radius:999px; }
+
+/* Aging */
+.aging-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.8rem; margin-bottom:1rem; }
+.aging-card { background:var(--surface); border-radius:var(--radius-sm); padding:.9rem 1rem; box-shadow:var(--shadow-sm); text-align:center; }
+.aging-card .aging-label { font-size:.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:.3rem; }
+.aging-card .aging-val { font-size:1.3rem; font-weight:800; }
+.aging-card.verde  .aging-val { color:var(--green); }
+.aging-card.giallo .aging-val { color:var(--orange); }
+.aging-card.rosso  .aging-val { color:var(--red); }
+.aging-card.blu    .aging-val { color:#3b82f6; }
+
+/* Due colonne layout */
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; }
+@media(max-width:720px){ .two-col { grid-template-columns:1fr; } }
+
+/* BvA variance */
+.bva-bar-track { height:6px; background:var(--border); border-radius:999px; margin-top:.3rem; overflow:hidden; }
+.bva-bar-fill  { height:100%; border-radius:999px; }
+.bva-bar-fill.ok      { background:var(--green); }
+.bva-bar-fill.over    { background:var(--red); }
+.bva-bar-fill.neutral { background:#3b82f6; }
+
+/* Stress Test slider */
+input[type=range].st-slider {
+  -webkit-appearance:none; appearance:none;
+  width:100%; height:6px; border-radius:999px;
+  background:var(--border); outline:none; cursor:pointer;
+}
+input[type=range].st-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--primary); cursor:pointer;
+  box-shadow:0 1px 4px rgba(0,0,0,.2);
+}
+input[type=range].st-slider::-moz-range-thumb {
+  width:18px; height:18px; border-radius:50%;
+  background:var(--primary); cursor:pointer; border:none;
+}
+.st-risultato-ok  { background:#f0fdf4; border:1px solid #bbf7d0; }
+.st-risultato-ko  { background:#fff5f5; border:1px solid #fecaca; }
+</style>
+
+<!-- Header -->
+<div class="cfo-header" style="flex-wrap:wrap;gap:.8rem">
+  <div style="display:flex;align-items:center;gap:.8rem">
+    <h1 class="page-title" style="margin-bottom:0">CFO Virtuale</h1>
+    <span class="cfo-badge">AI-Powered</span>
+  </div>
+  <!-- Selettore anno -->
+  <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+    <span style="font-size:.8rem;font-weight:600;color:var(--text-muted)">Anno:</span>
+    {% for a in anni_cfo %}
+    <a href="{{ url_for('cfo', anno=a) }}"
+       style="padding:.22rem .65rem;border-radius:999px;font-size:.8rem;font-weight:700;text-decoration:none;
+              background:{% if a == anno_cfo %}var(--primary){% else %}var(--surface){% endif %};
+              color:{% if a == anno_cfo %}#fff{% else %}var(--text-muted){% endif %};
+              border:1px solid {% if a == anno_cfo %}var(--primary){% else %}var(--border){% endif %}">
+      {{ a }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+<p class="text-muted" style="margin-bottom:1.8rem;font-size:.9rem">
+  {% if anno_cfo == today[:4]|int %}
+    Analisi corrente — dati al <strong>{{ today }}</strong>.
+  {% else %}
+    Analisi storica — riferimento <strong>31 dic {{ anno_cfo }}</strong>. Saldo, burn rate e proiezioni calcolati a quella data.
+  {% endif %}
+</p>
+
+<!-- ── Business Health Score ── -->
+<section class="section" style="margin-bottom:1.5rem">
+  <h2>🩺 Business Health Score</h2>
+  <div class="health-card">
+    <div class="health-score-wrap">
+      <div class="health-circle {% if health_score >= 75 %}verde{% elif health_score >= 50 %}giallo{% else %}rosso{% endif %}">
+        {{ health_score }}<span>/ 100</span>
+      </div>
+      <div class="health-bars">
+        {% for d in score_details %}
+        <div class="hbar-row">
+          <div class="hbar-label">{{ d.label }}</div>
+          <div class="hbar-track">
+            <div class="hbar-fill {{ d.tag }}" style="width:{{ (d.pts / d.max * 100)|int }}%"></div>
+          </div>
+          <div class="hbar-val cf-{{ 'pos' if d.tag in ('ottimo','buono') else ('neg' if d.tag == 'critico' else 'muted') }}">
+            {{ d.valore }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── KPI Weekly ── -->
+<section class="section" style="margin-bottom:1.5rem">
+  <h2>📅 Weekly</h2>
+  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+
+    <!-- 1. Cash in banca -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Cash in Banca
+        <div class="kpi-icon"><i data-lucide="wallet"></i></div>
+      </div>
+      <div class="kpi-value {% if saldo_attuale < 0 %}negativo{% endif %}">
+        € {{ saldo_attuale|format_eur }}
+      </div>
+      <div class="kpi-trend">
+        {% if saldo_attuale >= 0 %}
+          <span class="trend-badge trend-up"><i data-lucide="trending-up"></i> Positivo</span>
+        {% else %}
+          <span class="trend-badge trend-down"><i data-lucide="trending-down"></i> Negativo</span>
+        {% endif %}
+        <span class="trend-sub">liquidità disponibile</span>
+      </div>
+    </div>
+
+    <!-- 2. Pipeline totale -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Pipeline Totale
+        <div class="kpi-icon"><i data-lucide="target"></i></div>
+      </div>
+      <div class="kpi-value">€ {{ pipeline_aperta|format_eur }}</div>
+      <div class="kpi-trend">
+        <span class="trend-badge trend-neutral"><i data-lucide="percent"></i> {{ "%.0f"|format(conversion_rate) }}% conv.</span>
+        <span class="trend-sub">opportunità aperte</span>
+      </div>
+    </div>
+
+    <!-- 3. Consulenze fissate settimana -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Consulenze Fissate
+        <div class="kpi-icon"><i data-lucide="calendar"></i></div>
+      </div>
+      <div class="kpi-value" style="color:var(--text-muted)">—</div>
+      <div class="kpi-trend">
+        <span class="trend-sub">questa settimana</span>
+      </div>
+    </div>
+
+    <!-- 4. Contratti chiusi settimana -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Contratti Chiusi
+        <div class="kpi-icon"><i data-lucide="file-check"></i></div>
+      </div>
+      <div class="kpi-value {% if contratti_chiusi_settimana > 0 %}positivo{% endif %}">
+        {{ contratti_chiusi_settimana }}
+      </div>
+      <div class="kpi-trend">
+        <span class="trend-sub">ultimi 7 giorni</span>
+      </div>
+    </div>
+
+    <!-- 5. MRR attuale -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        MRR Attuale
+        <div class="kpi-icon"><i data-lucide="refresh-cw"></i></div>
+      </div>
+      <div class="kpi-value">€ {{ mrr_netto|format_eur }}</div>
+      <div class="kpi-trend">
+        <span class="trend-badge trend-up"><i data-lucide="arrow-up"></i> Ricorrente</span>
+        <span class="trend-sub">netto partner</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── KPI Monthly ── -->
+<section class="section" style="margin-bottom:1.5rem">
+  <h2>📆 Monthly</h2>
+  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+
+    <!-- 1. Fatturato -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Fatturato
+        <div class="kpi-icon {% if revenue_trend_pct <= 0 %}kpi-icon-red{% endif %}"><i data-lucide="trending-up"></i></div>
+      </div>
+      <div class="kpi-value {% if fatturato_mese > 0 %}positivo{% endif %}">
+        € {{ fatturato_mese|format_eur }}
+      </div>
+      <div class="kpi-trend">
+        {% if revenue_trend_pct > 0 %}
+          <span class="trend-badge trend-up"><i data-lucide="trending-up"></i> +{{ "%.1f"|format(revenue_trend_pct) }}%</span>
+        {% else %}
+          <span class="trend-badge trend-down"><i data-lucide="trending-down"></i> {{ "%.1f"|format(revenue_trend_pct) }}%</span>
+        {% endif %}
+        <span class="trend-sub">mese corrente</span>
+      </div>
+    </div>
+
+    <!-- 2. Margini -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Margini
+        <div class="kpi-icon {% if margine_pct < 0 %}kpi-icon-red{% endif %}"><i data-lucide="percent"></i></div>
+      </div>
+      <div class="kpi-value {% if margine_pct >= 0 %}{% else %}negativo{% endif %}">
+        {{ "%.1f"|format(margine_pct) }}%
+      </div>
+      <div class="kpi-trend">
+        {% if margine_pct >= 20 %}
+          <span class="trend-badge trend-up"><i data-lucide="trending-up"></i> Ottimo</span>
+        {% elif margine_pct >= 0 %}
+          <span class="trend-badge trend-neutral"><i data-lucide="minus"></i> Basso</span>
+        {% else %}
+          <span class="trend-badge trend-down"><i data-lucide="trending-down"></i> Negativo</span>
+        {% endif %}
+        <span class="trend-sub">anno {{ today[:4] }}</span>
+      </div>
+    </div>
+
+    <!-- 3. Pipeline -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Pipeline
+        <div class="kpi-icon"><i data-lucide="kanban"></i></div>
+      </div>
+      <div class="kpi-value">€ {{ pipeline_aperta|format_eur }}</div>
+      <div class="kpi-trend">
+        <span class="trend-badge trend-neutral"><i data-lucide="percent"></i> {{ "%.0f"|format(conversion_rate) }}% conv.</span>
+        <span class="trend-sub">valore totale</span>
+      </div>
+    </div>
+
+    <!-- 4. Eventi -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Eventi
+        <div class="kpi-icon"><i data-lucide="calendar-days"></i></div>
+      </div>
+      <div class="kpi-value" style="color:var(--text-muted)">—</div>
+      <div class="kpi-trend">
+        <span class="trend-sub">questo mese</span>
+      </div>
+    </div>
+
+    <!-- 5. MRR -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        MRR
+        <div class="kpi-icon"><i data-lucide="refresh-cw"></i></div>
+      </div>
+      <div class="kpi-value">€ {{ mrr_netto|format_eur }}</div>
+      <div class="kpi-trend">
+        <span class="trend-sub">ARR: € {{ arr|format_eur }}</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+
+/* ── Qualità Fatturato Donut ── */
+const qualitaEl = document.getElementById('chart-qualita');
+if (qualitaEl) {
+  const qRic = {{ ric_ricorrenti }};
+  const qUna = {{ ric_unatantum }};
+  if (qRic + qUna > 0) {
+    new Chart(qualitaEl, {
+      type: 'doughnut',
+      data: {
+        labels: ['Ricorrente','Una tantum'],
+        datasets:[{ data:[qRic, qUna], backgroundColor:['#10b981','#6366f1'], borderWidth:2 }]
+      },
+      options: {
+        responsive:true,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{ label: ctx => ' € '+ctx.parsed.toLocaleString('it-IT',{minimumFractionDigits:0}) } }
+        }
+      }
+    });
+  }
+}
+
+/* ── Concentrazione Clienti Donut ── */
+const concEl = document.getElementById('chart-conc');
+if (concEl) {
+  const concData = {{ concentrazione | tojson }};
+  if (concData.length > 0) {
+    const top5 = concData.slice(0, 5);
+    const altriVal = concData.slice(5).reduce((s,r) => s + r.fatturato, 0);
+    const labels = top5.map(r => r.cliente);
+    const values = top5.map(r => r.fatturato);
+    if (altriVal > 0) { labels.push('Altri'); values.push(altriVal); }
+    const palette = ['#6366f1','#10b981','#f59e0b','#3b82f6','#8b5cf6','#e2e8f0'];
+    new Chart(concEl, {
+      type: 'doughnut',
+      data: { labels, datasets:[{ data:values, backgroundColor:palette.slice(0, labels.length), borderWidth:2 }] },
+      options: {
+        responsive:true,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{ label: ctx => ` ${ctx.label}: € ${ctx.parsed.toLocaleString('it-IT')} (${(ctx.parsed / values.reduce((a,b)=>a+b,0)*100).toFixed(1)}%)` } }
+        }
+      }
+    });
+  }
+}
+
+/* ── Stagionalità Ricavi ── */
+(function() {
+  const el = document.getElementById('chart-stagionalita');
+  if (!el) return;
+  const data = {{ stagionalita | tojson }};
+  const max_ = Math.max(...data.map(r => r.entrate), 1);
+  new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: data.map(r => r.mese),
+      datasets: [{
+        label: 'Entrate',
+        data: data.map(r => r.entrate),
+        backgroundColor: data.map(r => {
+          const ratio = r.entrate / max_;
+          if (ratio >= 0.8) return 'rgba(16,185,129,0.75)';
+          if (ratio >= 0.5) return 'rgba(99,102,241,0.65)';
+          return 'rgba(148,163,184,0.55)';
+        }),
+        borderRadius: 3,
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' €' + ctx.parsed.y.toLocaleString('it-IT') } }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: v => '€' + v.toLocaleString('it-IT'), font: { size: 10 } } },
+        x: { ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+})();
+
+/* ── Stress Test ── */
+(function() {
+  const saldo0     = {{ saldo_attuale }};
+  const entrateMed = {{ entrate_3m }} / 3;
+  const burnRate   = {{ burn_rate }};
+
+  const slCalo   = document.getElementById('st-calo');
+  const slMesi   = document.getElementById('st-mesi');
+  const slTaglio = document.getElementById('st-taglio');
+  if (!slCalo || !slMesi || !slTaglio) return;
+
+  let stChart = null;
+
+  function runStress() {
+    const caloPct   = parseInt(slCalo.value) / 100;
+    const nMesi     = parseInt(slMesi.value);
+    const taglioPct = parseInt(slTaglio.value) / 100;
+
+    document.getElementById('st-calo-label').textContent   = `-${slCalo.value}%`;
+    document.getElementById('st-mesi-label').textContent   = `${nMesi} mes${nMesi === 1 ? 'e' : 'i'}`;
+    document.getElementById('st-taglio-label').textContent = taglioPct > 0 ? `-${slTaglio.value}% costi` : '0%';
+
+    const MONTHS  = 18;
+    const labels  = [];
+    const saldi   = [];
+    const baseline = [];
+    let saldo     = saldo0;
+    let saldoBase = saldo0;
+    let mesiCrisi = -1;
+
+    const oggi = new Date();
+    for (let i = 1; i <= MONTHS; i++) {
+      const d = new Date(oggi.getFullYear(), oggi.getMonth() + i, 1);
+      labels.push(d.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }));
+
+      const inStress = i <= nMesi;
+      const entrate  = inStress ? entrateMed * (1 - caloPct) : entrateMed;
+      const uscite   = inStress ? burnRate   * (1 - taglioPct) : burnRate;
+
+      saldo     += entrate - uscite;
+      saldoBase += entrateMed - burnRate;
+      saldi.push(Math.round(saldo));
+      baseline.push(Math.round(saldoBase));
+
+      if (mesiCrisi < 0 && saldo <= 0) mesiCrisi = i;
+    }
+
+    const isKo = mesiCrisi > 0;
+    const lineColor = isKo ? '#ef4444' : '#10b981';
+
+    if (stChart) stChart.destroy();
+    const ctx = document.getElementById('chart-stress');
+    stChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Scenario stress',
+            data: saldi,
+            borderColor: lineColor,
+            backgroundColor: isKo ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)',
+            borderWidth: 2.5,
+            pointRadius: 2,
+            fill: true,
+            tension: 0.3,
+          },
+          {
+            label: 'Baseline (nessun calo)',
+            data: baseline,
+            borderColor: '#94a3b8',
+            borderWidth: 1.5,
+            borderDash: [5, 4],
+            pointRadius: 0,
+            fill: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: { callbacks: { label: ctx => ' €' + ctx.parsed.y.toLocaleString('it-IT') } }
+        },
+        scales: {
+          y: { ticks: { callback: v => '€' + v.toLocaleString('it-IT'), font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+
+    /* Risultato testuale */
+    const res = document.getElementById('st-risultato');
+    const taglioTxt = taglioPct > 0 ? ` + taglio costi ${slTaglio.value}%` : '';
+    if (isKo) {
+      const dataCrisi = new Date(oggi.getFullYear(), oggi.getMonth() + mesiCrisi, 1);
+      const dataLabel = dataCrisi.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+      res.className = 'st-risultato-ko';
+      res.innerHTML = `
+        <div style="font-weight:800;font-size:1rem;color:var(--red);margin-bottom:.4rem">
+          ⚠️ Cassa esaurita in <strong>${mesiCrisi}</strong> mes${mesiCrisi===1?'e':'i'}
+        </div>
+        <div style="margin-bottom:.35rem;font-size:.83rem">
+          Data critica: <strong>${dataLabel}</strong>
+        </div>
+        <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:.5rem">
+          Con un calo del ${slCalo.value}% per ${nMesi} mes${nMesi===1?'e':'i'}${taglioTxt}, il saldo diventa negativo.
+        </div>
+        <div style="font-size:.8rem;padding:.5rem .7rem;background:#fff;border-radius:4px;border-left:3px solid var(--red)">
+          💡 <strong>Azione:</strong> servono entrate aggiuntive o una riduzione dei costi fissi di almeno
+          €${Math.round((burnRate - entrateMed*(1-caloPct))).toLocaleString('it-IT')}/mese per sopravvivere allo scenario.
+        </div>`;
+    } else {
+      const saldoFinale = saldi[saldi.length - 1];
+      res.className = 'st-risultato-ok';
+      res.innerHTML = `
+        <div style="font-weight:800;font-size:1rem;color:var(--green);margin-bottom:.4rem">
+          ✅ L'azienda resiste nei 18 mesi analizzati
+        </div>
+        <div style="margin-bottom:.35rem;font-size:.83rem">
+          Saldo finale stimato: <strong>€${saldoFinale.toLocaleString('it-IT')}</strong>
+        </div>
+        <div style="font-size:.8rem;color:var(--text-muted)">
+          Con un calo del ${slCalo.value}% per ${nMesi} mes${nMesi===1?'e':'i'}${taglioTxt},
+          la liquidità rimane positiva per tutto l'orizzonte analizzato.
+        </div>`;
+    }
+  }
+
+  slCalo.addEventListener('input', runStress);
+  slMesi.addEventListener('input', runStress);
+  slTaglio.addEventListener('input', runStress);
+  runStress();
+})();
+
+/* ── Chat ── */
+const chatMessages = document.getElementById('chat-messages');
+const chatInput    = document.getElementById('chat-input');
+const chatSend     = document.getElementById('chat-send');
+const chatClear    = document.getElementById('chat-clear');
+
+const STORAGE_KEY = 'thrive_cfo_chat_history';
+
+// history = array di {role:'user'|'assistant', content:string}
+let history = [];
+
+function saveHistory() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(history)); } catch(e) {}
+}
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) history = JSON.parse(raw);
+  } catch(e) { history = []; }
+}
+
+function renderHistory() {
+  // Rimuove tutti i messaggi tranne il primo (benvenuto)
+  while (chatMessages.children.length > 1) chatMessages.removeChild(chatMessages.lastChild);
+  history.forEach(m => appendMsg(m.content, m.role === 'user' ? 'user' : 'bot', false));
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function appendMsg(text, cssRole, save = true) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + cssRole;
+  el.textContent = text;
+  chatMessages.appendChild(el);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return el;
+}
+
+if (chatMessages && chatInput && chatSend) {
+  loadHistory();
+  if (history.length > 0) renderHistory();
+
+  async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+    chatInput.value = '';
+    chatSend.disabled = true;
+
+    appendMsg(text, 'user');
+    const typing = appendMsg('Il CFO sta pensando…', 'typing', false);
+
+    try {
+      const res = await fetch('/cfo/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history: history, anno_ref: {{ anno_cfo }} }),
+      });
+      const data = await res.json();
+      typing.remove();
+      if (data.error) {
+        appendMsg('⚠️ ' + data.error, 'bot');
+      } else {
+        appendMsg(data.response, 'bot');
+        // salva entrambi i turni nella history
+        history.push({ role: 'user', content: text });
+        history.push({ role: 'assistant', content: data.response });
+        saveHistory();
+      }
+    } catch (e) {
+      typing.remove();
+      appendMsg('⚠️ Errore di connessione. Riprova.', 'bot');
+    }
+    chatSend.disabled = false;
+    chatInput.focus();
+  }
+
+  chatSend.addEventListener('click', sendMessage);
+  chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+
+  if (chatClear) {
+    chatClear.addEventListener('click', () => {
+      if (!confirm('Cancellare tutta la cronologia della chat?')) return;
+      history = [];
+      saveHistory();
+      while (chatMessages.children.length > 1) chatMessages.removeChild(chatMessages.lastChild);
+    });
+  }
+}
+</script>
+{% endblock %}

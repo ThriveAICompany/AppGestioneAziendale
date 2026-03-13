@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}Proiezioni {{ anno }}{% endblock %}
+
+{% block content %}
+<div class="section">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+    <h2 style="margin:0;">Proiezioni {{ anno }}</h2>
+    <div style="margin-left:auto; display:flex; gap:.6rem; flex-wrap:wrap;">
+      <form method="POST" action="{{ url_for('proiezioni_importa') }}" style="margin:0;">
+        <button class="btn btn-secondary btn-sm" type="submit">↩ Importa costi ricorrenti</button>
+      </form>
+      <button class="btn btn-primary btn-sm" onclick="openModal()">+ Aggiungi uscita</button>
+    </div>
+  </div>
+
+  <!-- Grafico -->
+  <div class="card" style="padding:1.5rem; margin-bottom:1.5rem;">
+    <h3 style="margin:0 0 1rem; font-size:.95rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em;">Andamento mensile</h3>
+    <div class="chart-wrap" style="position:relative; height:280px;">
+      <canvas id="chartProiezioni"></canvas>
+    </div>
+
+    <!-- Delta row -->
+    <div style="margin-top:1.2rem; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:.82rem;">
+        <thead>
+          <tr>
+            <td style="padding:.3rem .5rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">Delta</td>
+            {% for label in ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'] %}
+            <td style="padding:.3rem .5rem; text-align:center; color:var(--text-muted); font-weight:500;">{{ label }}</td>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="deltaRow"></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tabella uscite -->
+  <div class="card" style="padding:1.5rem;">
+    <h3 style="margin:0 0 1rem; font-size:.95rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em;">Uscite proiettate</h3>
+
+    {% if uscite %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Tipo</th>
+          <th>Importo rata</th>
+          <th>Ricorrenza</th>
+          <th>Da</th>
+          <th>Durata</th>
+          <th>Note</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in uscite %}
+        <tr>
+          <td>{{ u.nome }}</td>
+          <td>
+            <span class="badge {% if u.tipo == 'fisso' %}badge-entrata{% else %}badge-uscita{% endif %}">
+              {{ u.tipo | capitalize }}
+            </span>
+          </td>
+          <td><strong>{{ u.importo_mensile | format_eur }}</strong></td>
+          <td>{{ u.ricorrenza | capitalize }}</td>
+          <td>{{ mesi_it[u.mese_inizio] }}</td>
+          <td>
+            {% if u.durata_mesi is none %}
+              <span style="color:var(--text-muted);">fino a dic</span>
+            {% else %}
+              {{ u.durata_mesi }} mes{% if u.durata_mesi == 1 %}e{% else %}i{% endif %}
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted); font-size:.85rem;">{{ u.note or '—' }}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn btn-secondary btn-xs"
+              onclick="openEditModal({{ u.id }}, '{{ u.nome | replace("'", "\\'") }}', {{ u.importo_mensile }}, '{{ u.tipo }}', '{{ u.ricorrenza or 'mensile' }}', {{ u.mese_inizio }}, '{{ u.durata_mesi if u.durata_mesi is not none else '' }}', '{{ u.note or '' | replace("'", "\\'") }}')">
+              Modifica
+            </button>
+            <form method="POST" action="{{ url_for('elimina_proiezione_uscita', uid=u.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Eliminare questa uscita?')">
+              <button class="btn btn-danger btn-xs" type="submit">Elimina</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted); text-align:center; padding:2rem 0;">
+      Nessuna uscita inserita. Clicca <strong>+ Aggiungi uscita</strong> o importa i costi ricorrenti.
+    </p>
+    {% endif %}
+  </div>
+
+</div><!-- /section -->
+
+
+<!-- ── MODAL AGGIUNGI / MODIFICA ─────────────────────────────────────────── -->
+<div id="modalOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border-radius:12px; padding:1.8rem; width:100%; max-width:480px; box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <h3 id="modalTitle" style="margin:0 0 1.4rem; font-size:1.05rem;">Nuova uscita</h3>
+
+    <form id="modalForm" method="POST" action="{{ url_for('nuova_proiezione_uscita') }}">
+      <div class="form-group">
+        <label>Nome</label>
+        <input type="text" name="nome" id="fNome" class="form-control" required placeholder="es. Affitto, Stipendio...">
+      </div>
+
+      <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+        <div class="form-group">
+          <label>Importo rata (€)</label>
+          <input type="number" name="importo_mensile" id="fImporto" class="form-control" step="0.01" min="0" required>
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select name="tipo" id="fTipo" class="form-control">
+            <option value="fisso">Fisso</option>
+            <option value="variabile">Variabile</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Ricorrenza</label>
+        <select name="ricorrenza" id="fRicorrenza" class="form-control">
+          <option value="mensile">Mensile</option>
+          <option value="bimestrale">Bimestrale</option>
+          <option value="trimestrale">Trimestrale</option>
+          <option value="semestrale">Semestrale</option>
+          <option value="annuale">Annuale</option>
+        </select>
+      </div>
+
+      <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+        <div class="form-group">
+          <label>Mese inizio</label>
+          <select name="mese_inizio" id="fMeseInizio" class="form-control">
+            {% for i in range(1, 13) %}
+            <option value="{{ i }}">{{ mesi_it[i] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Durata (mesi) — vuoto = fino a dic</label>
+          <input type="number" name="durata_mesi" id="fDurata" class="form-control" min="1" max="12" placeholder="es. 6">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Note (opzionale)</label>
+        <input type="text" name="note" id="fNote" class="form-control" placeholder="">
+      </div>
+
+      <div style="display:flex; gap:.6rem; justify-content:flex-end; margin-top:1.2rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary" id="modalSubmitBtn">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ── CHART.JS ──────────────────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const labels  = {{ chart_labels | safe }};
+const ricavi  = {{ chart_ricavi | safe }};
+const uscite  = {{ chart_uscite | safe }};
+const delta   = {{ chart_delta  | safe }};
+
+// Chart
+const ctx = document.getElementById('chartProiezioni').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: [
+      {
+        label: 'Ricavi netti',
+        data: ricavi,
+        backgroundColor: 'rgba(20,168,158,.75)',
+        borderColor: '#14A89E',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Uscite',
+        data: uscite,
+        backgroundColor: 'rgba(224,82,82,.7)',
+        borderColor: '#e05252',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { font: { size: 12 }, color: '#0f1a19' } },
+      tooltip: {
+        callbacks: {
+          label: ctx => ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('it-IT', {minimumFractionDigits:2})
+        }
+      }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#7a9190' } },
+      y: {
+        grid: { color: '#e4edec' },
+        ticks: {
+          color: '#7a9190',
+          callback: v => '€' + v.toLocaleString('it-IT')
+        }
+      }
+    }
+  }
+});
+
+// Delta row
+const tbody = document.getElementById('deltaRow');
+delta.forEach(val => {
+  const td = document.createElement('td');
+  td.style.cssText = 'padding:.35rem .5rem; text-align:center; font-weight:600; font-size:.82rem; border-radius:4px;';
+  const formatted = (val >= 0 ? '+' : '') + '€' + Math.abs(val).toLocaleString('it-IT', {minimumFractionDigits:0, maximumFractionDigits:0});
+  td.textContent = formatted;
+  td.style.color = val >= 0 ? '#14A89E' : '#e05252';
+  td.style.background = val >= 0 ? 'rgba(20,168,158,.08)' : 'rgba(224,82,82,.08)';
+  tbody.appendChild(td);
+});
+
+// First cell label placeholder
+const firstTd = document.createElement('td');
+tbody.insertBefore(firstTd, tbody.firstChild);
+
+
+// ── MODAL ───────────────────────────────────────────────────────────────────
+const overlay   = document.getElementById('modalOverlay');
+const modalForm = document.getElementById('modalForm');
+const modalTitle = document.getElementById('modalTitle');
+const newUrl    = "{{ url_for('nuova_proiezione_uscita') }}";
+
+function openModal() {
+  modalTitle.textContent = 'Nuova uscita';
+  modalForm.action = newUrl;
+  document.getElementById('fNome').value    = '';
+  document.getElementById('fImporto').value = '';
+  document.getElementById('fTipo').value    = 'fisso';
+  document.getElementById('fMeseInizio').value = '{{ oggi_mese }}';
+  document.getElementById('fDurata').value  = '';
+  document.getElementById('fNote').value    = '';
+  overlay.style.display = 'flex';
+}
+
+function openEditModal(id, nome, importo, tipo, ricorrenza, meseInizio, durata, note) {
+  modalTitle.textContent = 'Modifica uscita';
+  modalForm.action = '/proiezioni/uscite/' + id + '/modifica';
+  document.getElementById('fNome').value       = nome;
+  document.getElementById('fImporto').value    = importo;
+  document.getElementById('fTipo').value       = tipo;
+  document.getElementById('fRicorrenza').value = ricorrenza;
+  document.getElementById('fMeseInizio').value = meseInizio;
+  document.getElementById('fDurata').value     = durata;
+  document.getElementById('fNote').value       = note;
+  overlay.style.display = 'flex';
+}
+
+function closeModal() {
+  overlay.style.display = 'none';
+}
+
+overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+{% endblock %}

@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}P&L {{ anno }}{% endblock %}
+
+{% block content %}
+<style>
+  .pl-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.6rem; margin-bottom:1.5rem; }
+  .pl-kpi { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:0.65rem 0.85rem; }
+  .pl-kpi-label { font-size:0.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.25rem; }
+  .pl-kpi-val { font-size:1.15rem; font-weight:800; white-space:nowrap; }
+
+  .chart-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.2rem; margin-bottom:1.5rem; }
+
+  .pl-wrap { overflow-x:auto; margin-top:1rem; }
+  .pl-table { border-collapse:collapse; width:100%; font-size:0.79rem; white-space:nowrap; }
+  .pl-table th, .pl-table td { border:1px solid var(--border); padding:0.38rem 0.55rem; }
+  .pl-table th { background:var(--surface); font-weight:600; text-align:center; position:sticky; top:0; z-index:2; }
+  .pl-table th.lbl { text-align:left; position:sticky; left:0; z-index:3; min-width:160px; background:var(--surface); }
+  .pl-table td { text-align:right; }
+  .pl-table td.lbl { position:sticky; left:0; background:var(--surface); z-index:1; text-align:left; }
+
+  .row-ricavi td     { background:#e8f5e9; font-weight:700; color:#1b5e20; }
+  .row-costi td      { background:#ffeaea; font-weight:700; color:#b71c1c; }
+  .row-risultato td  { background:#e8eaf6; font-weight:800; font-size:0.87rem; }
+  .row-margine td    { background:#f4faf9; font-style:italic; color:var(--text-muted); font-size:0.78rem; }
+  .row-sub td        { background:#fafafa; }
+  .row-sub td.lbl    { padding-left:1.5rem; color:var(--text-muted); font-weight:400; }
+  .row-sub-ricavi td     { background:#f1f8f1; }
+  .row-sub-ricavi td.lbl { padding-left:1.5rem; color:#2e7d32; font-weight:400; }
+  .row-sep td        { background:#f0f0f0; height:3px; padding:0; border:none; }
+
+  .row-ricavi.clickable, .row-costi.clickable { cursor:pointer; user-select:none; }
+  .row-ricavi.clickable:hover td, .row-costi.clickable:hover td { filter:brightness(0.97); }
+  .sub-ricavi, .sub-costi { display:none; }
+  .sub-ricavi.open, .sub-costi.open { display:table-row; }
+
+  .col-tot { background:#f4f4f4 !important; font-weight:700 !important; border-left:2px solid var(--border) !important; }
+  .no-dati  { color:#bbb; font-style:italic; font-size:0.75rem; text-align:center !important; }
+  .zero     { color:#ddd; }
+
+  /* Tabella dettaglio Profis (formato conto economico) */
+  .ce-table { border-collapse:collapse; width:100%; max-width:640px; font-size:0.84rem; }
+  .ce-table th, .ce-table td { border:1px solid var(--border); padding:0.5rem 0.85rem; }
+  .ce-table th { background:var(--surface); font-weight:600; text-align:right; }
+  .ce-table th.lbl { text-align:left; }
+  .ce-table td { text-align:right; }
+  .ce-table td.lbl { text-align:left; font-weight:600; }
+  .ce-table .row-ricavi td { background:#e8f5e9; color:#1b5e20; font-weight:700; }
+  .ce-table .row-costi td  { background:#ffeaea; color:#b71c1c; font-weight:700; }
+  .ce-table .row-diff td   { background:#e8eaf6; font-weight:800; }
+
+  .fonte-nota { font-size:0.78rem; color:var(--text-muted); background:var(--primary-soft);
+                border-radius:8px; padding:0.5rem 1rem; margin-bottom:1rem; }
+</style>
+
+<div class="page-header">
+  <h1 class="page-title">P&amp;L — Conto Economico</h1>
+  <div class="actions">
+    <form method="GET" style="display:inline-flex;align-items:center;gap:0.5rem">
+      <label style="font-size:0.85rem;color:var(--text-muted)">Anno</label>
+      <select name="anno" onchange="this.form.submit()"
+              style="padding:0.3rem 0.6rem;border:1px solid var(--border);border-radius:8px;font-size:0.85rem">
+        {% for a in anni %}
+        <option value="{{ a }}" {% if a|int == anno %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <a href="{{ url_for('ricavi_contabili_import') }}" class="btn btn-secondary">+ Import Ricavi Profis</a>
+    <a href="{{ url_for('costi_contabili_import') }}" class="btn btn-secondary">+ Import Costi Profis</a>
+  </div>
+</div>
+
+<div class="fonte-nota">
+  📊 <strong>Ricavi</strong>: da file Profis importato (netti) — mesi caricati: <strong>{{ mesi_con_ricavi_profis|length }} / 12</strong>
+  &nbsp;·&nbsp;
+  <strong>Costi</strong>: da file Profis importato — mesi caricati: <strong>{{ mesi_pl | selectattr('ha_dati') | list | length }} / 12</strong>
+</div>
+
+<!-- KPI annuali -->
+<div class="pl-kpi-grid">
+  <div class="pl-kpi">
+    <div class="pl-kpi-label">Ricavi {{ anno }}</div>
+    <div class="pl-kpi-val positivo">€ {{ tot_anno.ricavi_saldo|format_eur }}</div>
+  </div>
+  <div class="pl-kpi">
+    <div class="pl-kpi-label">Costi {{ anno }}</div>
+    <div class="pl-kpi-val negativo">€ {{ tot_anno.costi_saldo|format_eur }}</div>
+  </div>
+  <div class="pl-kpi">
+    <div class="pl-kpi-label">Utile / Perdita</div>
+    <div class="pl-kpi-val {{ 'positivo' if tot_anno.risultato >= 0 else 'negativo' }}">
+      € {{ tot_anno.risultato|format_eur }}
+    </div>
+  </div>
+  <div class="pl-kpi">
+    <div class="pl-kpi-label">Margine %</div>
+    <div class="pl-kpi-val {{ 'positivo' if tot_anno.margine >= 0 else 'negativo' }}">
+      {{ tot_anno.margine }}%
+    </div>
+  </div>
+</div>
+
+<!-- Grafico -->
+<div class="chart-box">
+  <canvas id="plChart" height="75"></canvas>
+</div>
+
+{% if not conti_ordinati and not mesi_con_ricavi_profis %}
+<div class="empty-msg">
+  Nessun dato Profis trovato per il {{ anno }}.<br>
+  <a href="{{ url_for('ricavi_contabili_import') }}" class="btn btn-primary" style="margin-top:0.8rem">→ Importa Ricavi Profis</a>
+  <a href="{{ url_for('costi_contabili_import') }}" class="btn btn-secondary" style="margin-top:0.8rem">→ Importa Costi Profis</a>
+</div>
+{% else %}
+
+<!-- Tabella P&L mensile -->
+<div class="pl-wrap">
+<table class="pl-table">
+  <thead>
+    <tr>
+      <th class="lbl">Voce</th>
+      {% for r in mesi_pl %}
+      <th {% if not r.ha_dati and not r.ha_ricavi %}style="color:#bbb"{% endif %}>
+        {{ r.nome_breve }}
+        {% if not r.ha_dati and not r.ha_ricavi %}<br><span style="font-size:0.65rem">n/d</span>{% endif %}
+      </th>
+      {% endfor %}
+      <th class="col-tot">Totale {{ anno }}</th>
+    </tr>
+  </thead>
+  <tbody>
+
+    <!-- RICAVI -->
+    <tr class="row-ricavi {% if conti_ricavi_ordinati %}clickable{% endif %}" onclick="toggleSection('ricavi')" title="{% if conti_ricavi_ordinati %}Clicca per espandere/chiudere{% endif %}">
+      <td class="lbl">▲ Ricavi {% if conti_ricavi_ordinati %}<span id="icon-ricavi" style="font-size:0.7rem;opacity:0.6">▶</span>{% endif %}</td>
+      {% for r in mesi_pl %}
+      <td>{% if r.ricavi_saldo > 0 %}€ {{ r.ricavi_saldo|format_eur }}{% else %}<span class="zero">—</span>{% endif %}</td>
+      {% endfor %}
+      <td class="col-tot">€ {{ tot_anno.ricavi_saldo|format_eur }}</td>
+    </tr>
+
+    <!-- Dettaglio conti Ricavi Profis -->
+    {% for conto in conti_ricavi_ordinati %}
+    <tr class="row-sub-ricavi sub-ricavi">
+      <td class="lbl" title="Conto {{ conto }}">{{ conti_ricavi_desc[conto] }}</td>
+      {% for r in mesi_pl %}
+        {% set val = r.ricavi.get(conto, 0) %}
+        <td>
+          {% if r.ha_ricavi %}
+            {% if val > 0 %}€ {{ val|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+          {% else %}<span class="no-dati">—</span>{% endif %}
+        </td>
+      {% endfor %}
+      <td class="col-tot">
+        {% if tot_anno.conti_ricavi[conto] > 0 %}€ {{ tot_anno.conti_ricavi[conto]|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+
+    <tr class="row-sep"><td colspan="{{ mesi_pl|length + 2 }}"></td></tr>
+
+    <!-- COSTI -->
+    <tr class="row-costi {% if conti_ordinati %}clickable{% endif %}" onclick="toggleSection('costi')" title="{% if conti_ordinati %}Clicca per espandere/chiudere{% endif %}">
+      <td class="lbl">▼ Costi {% if conti_ordinati %}<span id="icon-costi" style="font-size:0.7rem;opacity:0.6">▶</span>{% endif %}</td>
+      {% for r in mesi_pl %}
+      <td>
+        {% if r.ha_dati %}
+          {% if r.costi_saldo > 0 %}€ {{ r.costi_saldo|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+        {% else %}<span class="no-dati">n/d</span>{% endif %}
+      </td>
+      {% endfor %}
+      <td class="col-tot">€ {{ tot_anno.costi_saldo|format_eur }}</td>
+    </tr>
+
+    <!-- Dettaglio conti Costi Profis -->
+    {% for conto in conti_ordinati %}
+    <tr class="row-sub sub-costi">
+      <td class="lbl" title="Conto {{ conto }}">{{ conti_desc[conto] }}</td>
+      {% for r in mesi_pl %}
+        {% set val = r.costi.get(conto, 0) %}
+        <td>
+          {% if r.ha_dati %}
+            {% if val > 0 %}€ {{ val|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+          {% else %}<span class="no-dati">—</span>{% endif %}
+        </td>
+      {% endfor %}
+      <td class="col-tot">
+        {% if tot_anno.conti[conto] > 0 %}€ {{ tot_anno.conti[conto]|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+
+    <tr class="row-sep"><td colspan="{{ mesi_pl|length + 2 }}"></td></tr>
+
+    <!-- UTILE / PERDITA -->
+    <tr class="row-risultato">
+      <td class="lbl">= Utile / Perdita</td>
+      {% for r in mesi_pl %}
+      <td class="{{ 'positivo' if r.risultato >= 0 else 'negativo' }}">
+        {% if r.ha_dati or r.ha_ricavi %}€ {{ r.risultato|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+      </td>
+      {% endfor %}
+      <td class="col-tot {{ 'positivo' if tot_anno.risultato >= 0 else 'negativo' }}">€ {{ tot_anno.risultato|format_eur }}</td>
+    </tr>
+
+    <!-- MARGINE % -->
+    <tr class="row-margine">
+      <td class="lbl">Margine %</td>
+      {% for r in mesi_pl %}
+      <td>{% if r.ricavi_saldo > 0 %}{{ r.margine }}%{% else %}<span class="zero">—</span>{% endif %}</td>
+      {% endfor %}
+      <td class="col-tot">{{ tot_anno.margine }}%</td>
+    </tr>
+
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<!-- ═══ DETTAGLIO PROFIS PER MESE (formato Conto Economico) ═══ -->
+<div style="margin-top:2.5rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:1rem;flex-wrap:wrap">
+    <h3 style="margin:0;font-size:1rem;font-weight:700">Dettaglio Profis per mese</h3>
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+      {% if mesi_disponibili %}
+      <form method="GET" style="display:inline-flex;align-items:center;gap:0.4rem">
+        <input type="hidden" name="anno" value="{{ anno }}" />
+        <select name="tipo" onchange="this.form.submit()"
+                style="padding:0.3rem 0.6rem;border:1px solid var(--border);border-radius:8px;font-size:0.82rem">
+          <option value="costi" {% if tipo_sel == 'costi' %}selected{% endif %}>Costi</option>
+          <option value="ricavi" {% if tipo_sel == 'ricavi' %}selected{% endif %}>Ricavi</option>
+        </select>
+        <select name="mese" onchange="this.form.submit()"
+                style="padding:0.3rem 0.6rem;border:1px solid var(--border);border-radius:8px;font-size:0.82rem">
+          {% for m in mesi_disponibili %}
+          {% set disponibile = (tipo_sel == 'costi' and m in mesi_disp_costi) or (tipo_sel == 'ricavi' and m in mesi_disp_ricavi) %}
+          <option value="{{ m }}" {% if m == mese_sel %}selected{% endif %}
+                  {% if not disponibile %}style="color:#bbb"{% endif %}>
+            {{ mesi_it[m] }} {{ anno }}{% if not disponibile %} (n/d){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      {% if mese_sel and voci_mese %}
+      {% if tipo_sel == 'costi' %}
+      <a href="{{ url_for('pl_export_csv', anno=anno, mese=mese_sel) }}" class="btn btn-secondary" style="font-size:0.82rem">↓ Scarica CSV</a>
+      <form method="POST" action="{{ url_for('costi_contabili_elimina_mese', anno=anno, mese=mese_sel) }}"
+            onsubmit="return confirm('Eliminare i costi di {{ mesi_it[mese_sel] }} {{ anno }}?')">
+        <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;color:#c62828">Elimina mese</button>
+      </form>
+      {% else %}
+      <form method="POST" action="{{ url_for('ricavi_contabili_elimina_mese', anno=anno, mese=mese_sel) }}"
+            onsubmit="return confirm('Eliminare i ricavi di {{ mesi_it[mese_sel] }} {{ anno }}?')">
+        <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;color:#c62828">Elimina mese</button>
+      </form>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not mesi_disponibili %}
+  <div class="empty-msg">Nessun dato Profis importato per il {{ anno }}.</div>
+
+  {% elif mese_sel %}
+    {% set mese_data = mesi_pl | selectattr('mese', 'equalto', mese_sel) | first | default(none) %}
+
+    {% if mese_data %}
+    <!-- Riepilogo Conto Economico stile Profis -->
+    <table class="ce-table" style="margin-bottom:1.5rem">
+      <thead>
+        <tr>
+          <th class="lbl">Conto Economico — {{ mesi_it[mese_sel] }} {{ anno }}</th>
+          <th>Non rettificato</th>
+          <th>Rettifiche</th>
+          <th>Saldo finale</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row-costi">
+          <td class="lbl">Costi</td>
+          <td>€ {{ mese_data.costi_non_rett|format_eur }}</td>
+          <td>€ {{ mese_data.costi_rettifiche|format_eur }}</td>
+          <td>€ {{ mese_data.costi_saldo|format_eur }}</td>
+        </tr>
+        <tr class="row-ricavi">
+          <td class="lbl">Ricavi</td>
+          <td>€ {{ mese_data.ricavi_non_rett|format_eur }}</td>
+          <td>€ {{ mese_data.ricavi_rettifiche|format_eur }}</td>
+          <td>€ {{ mese_data.ricavi_saldo|format_eur }}</td>
+        </tr>
+        <tr class="row-diff">
+          {% set diff_nr = mese_data.ricavi_non_rett - mese_data.costi_non_rett %}
+          <td class="lbl {{ 'positivo' if mese_data.risultato >= 0 else 'negativo' }}">
+            {% if mese_data.risultato >= 0 %}Utile{% else %}Perdita{% endif %}
+          </td>
+          <td class="{{ 'positivo' if diff_nr >= 0 else 'negativo' }}">€ {{ diff_nr|format_eur }}</td>
+          <td>—</td>
+          <td class="{{ 'positivo' if mese_data.risultato >= 0 else 'negativo' }}">€ {{ mese_data.risultato|format_eur }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Dettaglio voci del mese selezionato -->
+    {% if voci_mese %}
+    <div style="overflow-x:auto">
+      <table class="pl-table" style="font-size:0.8rem">
+        <thead>
+          <tr>
+            <th class="lbl">Conto</th>
+            <th class="lbl" style="min-width:220px">Descrizione</th>
+            <th>Non rettificato</th>
+            <th>Rettifiche</th>
+            <th>Saldo finale</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in voci_mese %}
+          <tr class="{% if v.livello == 0 %}{% if tipo_sel == 'ricavi' %}row-ricavi{% else %}row-costi{% endif %}{% else %}row-sub{% endif %}">
+            <td class="lbl" style="font-family:monospace;padding-left:{{ v.livello * 1.2 + 0.5 }}rem">
+              {{ v.conto }}{% if v.flag %} <span style="font-size:0.7rem;color:var(--orange)">[{{ v.flag }}]</span>{% endif %}
+            </td>
+            <td class="lbl" style="padding-left:{{ v.livello * 1.2 + 0.5 }}rem">{{ v.descrizione }}</td>
+            <td>{% if v.saldo_non_rettificato is not none %}€ {{ v.saldo_non_rettificato|format_eur }}{% else %}—{% endif %}</td>
+            <td>{% if v.rettifiche and v.rettifiche != 0 %}
+              <span style="color:{% if v.rettifiche > 0 %}var(--green){% else %}var(--red){% endif %}">
+                {% if v.rettifiche > 0 %}+{% endif %}€ {{ v.rettifiche|format_eur }}
+              </span>
+            {% else %}—{% endif %}</td>
+            <td style="{% if v.livello == 0 %}font-weight:700{% endif %}">€ {{ v.saldo_finale|format_eur }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr style="background:#e8eaf6;font-weight:700">
+            <td class="lbl" colspan="4">Totale {{ 'ricavi' if tipo_sel == 'ricavi' else 'costi' }}</td>
+            <td>€ {{ totale_mese|format_eur }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-msg" style="font-size:0.85rem">
+      Nessun dato {{ 'ricavi' if tipo_sel == 'ricavi' else 'costi' }} per {{ mesi_it[mese_sel] }} {{ anno }}.
+      <a href="{{ url_for('ricavi_contabili_import' if tipo_sel == 'ricavi' else 'costi_contabili_import') }}" style="margin-left:0.5rem">→ Importa</a>
+    </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+<script>
+function toggleSection(tipo) {
+  const rows = document.querySelectorAll('.sub-' + tipo);
+  const icon = document.getElementById('icon-' + tipo);
+  const isOpen = rows.length > 0 && rows[0].classList.contains('open');
+  rows.forEach(r => r.classList.toggle('open', !isOpen));
+  if (icon) icon.textContent = isOpen ? '▶' : '▼';
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const labels    = {{ mesi_pl | map(attribute='nome_breve') | list | tojson }};
+const ricavi    = {{ mesi_pl | map(attribute='ricavi_saldo') | list | tojson }};
+const costi     = {{ mesi_pl | map(attribute='costi_saldo') | list | tojson }};
+const risultato = {{ mesi_pl | map(attribute='risultato') | list | tojson }};
+
+new Chart(document.getElementById('plChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'Ricavi', data: ricavi,
+        backgroundColor: 'rgba(20,168,158,0.25)', borderColor: 'rgba(20,168,158,0.8)',
+        borderWidth: 1.5, borderRadius: 4, order: 2 },
+      { label: 'Costi', data: costi,
+        backgroundColor: 'rgba(224,82,82,0.2)', borderColor: 'rgba(224,82,82,0.7)',
+        borderWidth: 1.5, borderRadius: 4, order: 2 },
+      { label: 'Utile/Perdita', data: risultato,
+        type: 'line', borderColor: '#5c6bc0', backgroundColor: 'rgba(92,107,192,0.08)',
+        borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#5c6bc0',
+        fill: false, tension: 0.3, order: 1 },
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: € ${ctx.parsed.y.toLocaleString('it-IT',{minimumFractionDigits:2})}` } }
+    },
+    scales: { y: { ticks: { callback: v => '€ ' + v.toLocaleString('it-IT',{minimumFractionDigits:0}) } } }
+  }
+});
+</script>
+{% endblock %}

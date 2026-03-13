@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Movimenti{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Movimenti</h1>
+  <div style="display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="toggleForm('form-nuovo-movimento')">+ Nuovo Movimento</button>
+    <a href="{{ url_for('import_csv') }}" class="btn btn-secondary">Importa da CSV</a>
+  </div>
+</div>
+
+<!-- Filtro anno / mese -->
+<form method="get" action="{{ url_for('movimenti') }}"
+      style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1.2rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.65rem 1rem">
+  <span style="font-weight:600;font-size:.88rem;color:var(--text-muted)">Filtra per:</span>
+  <select name="anno" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.88rem;background:var(--bg)">
+    {% for a in anni_disponibili %}
+    <option value="{{ a }}" {% if a == anno_sel %}selected{% endif %}>{{ a }}</option>
+    {% endfor %}
+  </select>
+  <select name="mese" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.88rem;background:var(--bg)">
+    <option value="" {% if not mese_sel %}selected{% endif %}>Tutti i mesi</option>
+    {% for mn, ml in [('1','Gennaio'),('2','Febbraio'),('3','Marzo'),('4','Aprile'),('5','Maggio'),('6','Giugno'),
+                      ('7','Luglio'),('8','Agosto'),('9','Settembre'),('10','Ottobre'),('11','Novembre'),('12','Dicembre')] %}
+    <option value="{{ mn }}" {% if mese_sel == mn %}selected{% endif %}>{{ ml }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary" style="padding:.35rem .8rem;font-size:.88rem">Filtra</button>
+  {% if mese_sel %}
+  <a href="{{ url_for('movimenti', anno=anno_sel) }}" class="btn btn-secondary" style="padding:.35rem .8rem;font-size:.88rem">× Mese</a>
+  {% endif %}
+  <div style="margin-left:auto;display:flex;gap:1.2rem;font-size:.88rem">
+    <span style="color:var(--green)">▲ Entrate: <strong>€{{ totale_entrate|format_eur }}</strong></span>
+    <span style="color:var(--red)">▼ Uscite: <strong>€{{ totale_uscite|format_eur }}</strong></span>
+    <span style="color:var(--text-muted)">Netto:
+      <strong class="{{ 'positivo' if (totale_entrate - totale_uscite) >= 0 else 'negativo' }}">
+        €{{ (totale_entrate - totale_uscite)|format_eur }}
+      </strong>
+    </span>
+  </div>
+</form>
+
+<div id="form-nuovo-movimento" class="form-card hidden">
+  <h3>Aggiungi Movimento</h3>
+  <form action="{{ url_for('nuovo_movimento') }}" method="POST">
+    <input type="hidden" name="_anno" value="{{ anno_sel }}">
+    <input type="hidden" name="_mese" value="{{ mese_sel }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tipo *</label>
+        <select name="tipo" required>
+          <option value="entrata">Entrata</option>
+          <option value="uscita">Uscita</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Importo (€) *</label>
+        <input type="number" name="importo" step="0.01" min="0.01" required placeholder="0.00" />
+      </div>
+      <div class="form-group">
+        <label>Data *</label>
+        <input type="date" name="data" required id="input-data" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label>Descrizione *</label>
+        <input type="text" name="descrizione" required placeholder="Es. Spese cloud, fattura consulenza..." />
+      </div>
+      <div class="form-group">
+        <label>Categoria *</label>
+        <select name="categoria" required>
+          {% for cat in categorie %}
+          <option value="{{ cat }}">{{ cat.capitalize() }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Cliente (opzionale)</label>
+        <select name="cliente_id">
+          <option value="">— Nessuno —</option>
+          {% for c in clienti %}
+          <option value="{{ c.id }}">{{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Salva</button>
+      <button type="button" class="btn btn-secondary" onclick="toggleForm('form-nuovo-movimento')">Annulla</button>
+    </div>
+  </form>
+</div>
+
+{% set entrate = movimenti | selectattr('tipo', 'equalto', 'entrata') | list %}
+{% set uscite  = movimenti | selectattr('tipo', 'equalto', 'uscita')  | list %}
+
+{% if not movimenti %}
+<p class="empty-msg">
+  Nessun movimento per
+  {% if mese_sel %}
+    {% set mesi_label = {'1':'Gennaio','2':'Febbraio','3':'Marzo','4':'Aprile','5':'Maggio','6':'Giugno','7':'Luglio','8':'Agosto','9':'Settembre','10':'Ottobre','11':'Novembre','12':'Dicembre'} %}
+    {{ mesi_label[mese_sel] }} {{ anno_sel }}.
+  {% else %}
+    {{ anno_sel }}.
+  {% endif %}
+</p>
+{% endif %}
+
+{% macro tabella_movimenti(lista) %}
+<table class="table">
+  <thead>
+    <tr>
+      <th style="white-space:nowrap">Data</th>
+      <th>Descrizione</th>
+      <th style="white-space:nowrap">Categoria</th>
+      <th style="white-space:nowrap;text-align:right">Importo</th>
+      <th>Azioni</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in lista %}
+    <tr>
+      <td style="white-space:nowrap">{{ m.data }}</td>
+      <td>{{ m.descrizione }}</td>
+      <td style="white-space:nowrap"><span class="badge badge-categoria">{{ (m.categoria or 'altro').capitalize() }}</span></td>
+      <td style="white-space:nowrap;text-align:right" class="{{ m.tipo }}">
+        {% if m.tipo == 'entrata' %}+{% else %}-{% endif %}
+        &euro; {{ (m.importo)|format_eur }}
+      </td>
+      <td class="actions">
+        <div class="actions-wrap">
+          <button type="button" class="btn btn-sm btn-secondary btn-icon" title="Modifica"
+            onclick="apriModaleMovimento({{ m.id }}, '{{ m.data }}', {{ m.descrizione|tojson }}, '{{ m.importo }}', '{{ m.tipo }}', '{{ m.categoria or 'altro' }}')">
+            <i data-lucide="pencil"></i>
+          </button>
+          <form action="{{ url_for('elimina_movimento', mid=m.id) }}" method="POST" style="display:contents"
+                onsubmit="return confirm('Eliminare questo movimento?')">
+            <input type="hidden" name="_anno" value="{{ anno_sel }}">
+            <input type="hidden" name="_mese" value="{{ mese_sel }}">
+            <button type="submit" class="btn btn-sm btn-danger btn-icon" title="Elimina"><i data-lucide="trash-2"></i></button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% if entrate %}
+<section class="section">
+  <h2>Entrate <span class="badge-count badge-count-success">{{ entrate|length }}</span></h2>
+  {{ tabella_movimenti(entrate) }}
+</section>
+{% endif %}
+
+{% if uscite %}
+<section class="section">
+  <h2>Uscite <span class="badge-count" style="background:var(--red)">{{ uscite|length }}</span></h2>
+  {{ tabella_movimenti(uscite) }}
+</section>
+{% endif %}
+
+<!-- Modal modifica movimento -->
+<div id="modal-modifica-mov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:1.5rem;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+    <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:700;">Modifica Movimento</h3>
+    <form id="form-modifica-mov" method="POST">
+      <input type="hidden" name="_anno" value="{{ anno_sel }}">
+      <input type="hidden" name="_mese" value="{{ mese_sel }}">
+      <div style="display:flex;flex-direction:column;gap:0.75rem;">
+        <div>
+          <label style="font-size:0.82rem;color:#666;display:block;margin-bottom:3px;">Data</label>
+          <input type="date" name="data" id="mod-data" required style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:0.82rem;color:#666;display:block;margin-bottom:3px;">Descrizione</label>
+          <input type="text" name="descrizione" id="mod-descrizione" required style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <div style="flex:1;">
+            <label style="font-size:0.82rem;color:#666;display:block;margin-bottom:3px;">Importo (€)</label>
+            <input type="number" name="importo" id="mod-importo" step="0.01" min="0" required style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:0.82rem;color:#666;display:block;margin-bottom:3px;">Tipo</label>
+            <select name="tipo" id="mod-tipo" style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+              <option value="entrata">Entrata</option>
+              <option value="uscita">Uscita</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:0.82rem;color:#666;display:block;margin-bottom:3px;">Categoria</label>
+          <select name="categoria" id="mod-categoria" style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+            {% for cat in categorie %}
+            <option value="{{ cat }}">{{ cat.capitalize() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.75rem;margin-top:1.25rem;justify-content:flex-end;">
+        <button type="button" onclick="chiudiModaleMovimento()" class="btn btn-secondary">Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleForm(id) { document.getElementById(id).classList.toggle('hidden'); }
+document.getElementById('input-data').valueAsDate = new Date();
+
+function apriModaleMovimento(id, data, descrizione, importo, tipo, categoria) {
+  var m = document.getElementById('modal-modifica-mov');
+  document.getElementById('form-modifica-mov').action = '/movimenti/' + id + '/modifica';
+  document.getElementById('mod-data').value = data;
+  document.getElementById('mod-descrizione').value = descrizione;
+  document.getElementById('mod-importo').value = importo;
+  document.getElementById('mod-tipo').value = tipo;
+  document.getElementById('mod-categoria').value = categoria;
+  m.style.display = 'flex';
+}
+function chiudiModaleMovimento() {
+  document.getElementById('modal-modifica-mov').style.display = 'none';
+}
+document.getElementById('modal-modifica-mov').addEventListener('click', function(e) {
+  if (e.target === this) chiudiModaleMovimento();
+});
+</script>
+{% endblock %}

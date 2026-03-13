@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Importa CSV{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Importa Movimenti da CSV</h1>
+  <a href="{{ url_for('movimenti') }}" class="btn btn-secondary">&larr; Torna ai Movimenti</a>
+</div>
+
+<!-- Step indicator -->
+<div class="import-steps">
+  <span class="import-step {% if step == 1 %}active{% elif step > 1 %}done{% endif %}">1. Carica file</span>
+  <span class="import-step-sep">&rsaquo;</span>
+  <span class="import-step {% if step == 2 %}active{% elif step > 2 %}done{% endif %}">2. Anteprima</span>
+  <span class="import-step-sep">&rsaquo;</span>
+  <span class="import-step {% if step == 3 %}active{% endif %}">3. Importato</span>
+</div>
+
+<!-- ── STEP 1: Upload ── -->
+{% if step == 1 %}
+<div class="section">
+  {% if errore %}
+  <div class="alert alert-danger">{{ errore }}</div>
+  {% endif %}
+
+  <h2>Seleziona il file CSV della tua banca</h2>
+  <p style="color:var(--text-light); margin-bottom:1.5rem;">
+    Formati supportati automaticamente: <strong>Fineco</strong>, <strong>N26</strong>.<br>
+    Per altre banche usa il formato generico:
+    <a href="{{ url_for('import_csv_template') }}">scarica il template CSV</a>.
+  </p>
+
+  <form action="{{ url_for('import_csv_upload') }}" method="POST" enctype="multipart/form-data">
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label>File CSV *</label>
+        <input type="file" name="csv_file" accept=".csv" required />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Carica e analizza</button>
+    </div>
+  </form>
+
+  <div class="import-info-box">
+    <strong>Formato generico supportato</strong>
+    <p>Crea un CSV con queste colonne (la riga di intestazione è obbligatoria):</p>
+    <code>data, descrizione, importo, tipo, categoria</code>
+    <ul>
+      <li><b>data</b>: GG/MM/AAAA oppure AAAA-MM-GG</li>
+      <li><b>importo</b>: numero positivo (es. 1234.50 oppure 1.234,50)</li>
+      <li><b>tipo</b>: <em>entrata</em> oppure <em>uscita</em> — se assente, positivo = entrata</li>
+      <li><b>categoria</b>: opzionale, sovrascrive il default scelto in fase 2</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── STEP 2: Anteprima ── -->
+{% elif step == 2 %}
+<div class="section">
+  <h2>Anteprima — {{ righe|length }} movimenti trovati</h2>
+  <p style="color:var(--text-light); margin-bottom:1rem;">
+    Controlla i dati prima di confermare. I movimenti già presenti nel database verranno saltati automaticamente.
+  </p>
+
+  <form action="{{ url_for('import_csv_conferma') }}" method="POST">
+    <input type="hidden" name="righe_json" value="{{ righe_json }}" />
+
+    <div class="form-row" style="margin-bottom:1.5rem;">
+      <div class="form-group">
+        <label>Categoria di default (per righe senza categoria)</label>
+        <select name="categoria_default">
+          {% for cat in categorie %}
+          <option value="{{ cat }}">{{ cat.capitalize() }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrizione</th>
+            <th>Tipo</th>
+            <th>Importo</th>
+            <th>Categoria CSV</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in righe %}
+          <tr>
+            <td>{{ r.data }}</td>
+            <td>{{ r.descrizione }}</td>
+            <td><span class="badge badge-{{ r.tipo }}">{{ r.tipo.capitalize() }}</span></td>
+            <td class="{{ r.tipo }}">
+              {% if r.tipo == 'entrata' %}+{% else %}-{% endif %}
+              &euro; {{ "%.2f"|format(r.importo)|replace('.', 'X')|replace(',', '.')|replace('X', ',') }}
+            </td>
+            <td>
+              {% if r.categoria %}
+              <span class="badge badge-categoria">{{ r.categoria.capitalize() }}</span>
+              {% else %}
+              <span style="color:var(--text-light)">— default —</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="form-actions" style="margin-top:1.5rem;">
+      <button type="submit" class="btn btn-primary">Importa {{ righe|length }} movimenti</button>
+      <a href="{{ url_for('import_csv') }}" class="btn btn-secondary">Annulla</a>
+    </div>
+  </form>
+</div>
+
+<!-- ── STEP 3: Successo ── -->
+{% elif step == 3 %}
+<div class="section" style="text-align:center; padding:3rem 1rem;">
+  <div style="font-size:3rem; margin-bottom:1rem;">✅</div>
+  <h2>Importazione completata</h2>
+  <div style="display:flex; gap:2rem; justify-content:center; margin:2rem 0;">
+    <div class="kpi-card" style="min-width:160px;">
+      <div class="kpi-value positivo">{{ importati }}</div>
+      <div class="kpi-label">Movimenti importati</div>
+    </div>
+    <div class="kpi-card" style="min-width:160px;">
+      <div class="kpi-value" style="color:var(--text-light);">{{ duplicati }}</div>
+      <div class="kpi-label">Duplicati saltati</div>
+    </div>
+  </div>
+  <div class="form-actions" style="justify-content:center;">
+    <a href="{{ url_for('movimenti', anno=anno_importato) }}" class="btn btn-primary">Vai ai Movimenti {{ anno_importato }}</a>
+    <a href="{{ url_for('import_csv') }}" class="btn btn-secondary">Importa un altro file</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

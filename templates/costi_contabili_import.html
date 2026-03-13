@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Importa CSV Profis{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Importa CSV Profis</h1>
+  <a href="{{ url_for('costi_contabili') }}" class="btn btn-secondary">&larr; Torna ai Costi Contabili</a>
+</div>
+
+<div class="section">
+  {% if errore %}
+  <div class="alert alert-danger">{{ errore }}</div>
+  {% endif %}
+
+  <h2>Seleziona il file e il periodo</h2>
+  <p style="color:var(--text-light); margin-bottom:1.5rem;">
+    Carica il CSV esportato da <strong>Profis</strong> (Piano dei conti / Bilancio di verifica).<br>
+    Se esiste già un import per lo stesso mese, i dati verranno aggiornati.
+  </p>
+
+  <form action="{{ url_for('costi_contabili_import') }}" method="POST" enctype="multipart/form-data">
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label>File CSV Profis *</label>
+        <input type="file" name="csv_file" accept=".csv" required />
+      </div>
+      <div class="form-group">
+        <label>Anno *</label>
+        <select name="anno" required>
+          {% for y in range(anno_corrente, anno_corrente - 4, -1) %}
+          <option value="{{ y }}" {% if y == anno_corrente %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Mese *</label>
+        <select name="mese" required>
+          {% for i in range(1, 13) %}
+          <option value="{{ i }}">{{ MESI_IT[i] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Importa</button>
+    </div>
+  </form>
+
+  <div class="import-info-box" style="margin-top:2rem;">
+    <strong>Come esportare da Profis</strong>
+    <ol style="margin-top:0.5rem; padding-left:1.2rem; color:var(--text-light); line-height:1.8;">
+      <li>Apri Profis e vai su <em>Contabilità → Piano dei conti</em> oppure <em>Bilancio di verifica</em></li>
+      <li>Seleziona il periodo (mese)</li>
+      <li>Esporta in formato <strong>CSV</strong> con separatore <strong>punto e virgola (;)</strong></li>
+      <li>Carica il file qui sopra</li>
+    </ol>
+  </div>
+</div>
+{% endblock %}

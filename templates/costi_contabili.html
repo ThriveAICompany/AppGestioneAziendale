@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Costi Contabili{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Costi Contabili (Profis)</h1>
+  <a href="{{ url_for('costi_contabili_import') }}" class="btn btn-primary">+ Importa CSV Profis</a>
+</div>
+
+<!-- Selezione mese -->
+<div class="section" style="margin-bottom:1.5rem;">
+  <form method="get" style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap;">
+    <div class="form-group" style="margin-bottom:0;">
+      <label>Anno</label>
+      <select name="anno">
+        {% for m in mesi_disponibili %}
+          <option value="{{ m.anno }}" {% if m.anno == anno %}selected{% endif %}>{{ m.anno }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label>Mese</label>
+      <select name="mese">
+        {% for m in mesi_disponibili %}
+          <option value="{{ m.mese }}" {% if m.mese == mese %}selected{% endif %}>
+            {{ MESI_IT[m.mese] }} {{ m.anno }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-secondary">Visualizza</button>
+  </form>
+</div>
+
+{% if not anno or not mese %}
+  {% if mesi_disponibili %}
+  <div class="section" style="text-align:center; padding:2rem; color:var(--text-light);">
+    Seleziona un mese per visualizzare i costi.
+  </div>
+  {% else %}
+  <div class="section" style="text-align:center; padding:3rem;">
+    <div style="font-size:2.5rem; margin-bottom:1rem;">📂</div>
+    <h2>Nessun dato importato</h2>
+    <p style="color:var(--text-light); margin-bottom:1.5rem;">Importa un CSV esportato da Profis per iniziare.</p>
+    <a href="{{ url_for('costi_contabili_import') }}" class="btn btn-primary">Importa CSV Profis</a>
+  </div>
+  {% endif %}
+
+{% else %}
+<!-- Intestazione mese -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+  <h2 style="margin:0;">{{ MESI_IT[mese] }} {{ anno }}</h2>
+  <form method="post" action="{{ url_for('costi_contabili_elimina_mese', anno=anno, mese=mese) }}"
+        onsubmit="return confirm('Eliminare tutti i dati di {{ MESI_IT[mese] }} {{ anno }}?');">
+    <button type="submit" class="btn btn-danger" style="font-size:0.85rem; padding:0.4rem 0.8rem;">
+      Elimina mese
+    </button>
+  </form>
+</div>
+
+{% if voci %}
+<div class="section" style="padding:0; overflow-x:auto;">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Conto</th>
+        <th>Descrizione</th>
+        <th style="text-align:right;">Saldo non rett.</th>
+        <th style="text-align:right;">Rettifiche</th>
+        <th style="text-align:right;">Saldo finale</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in voci %}
+      <tr class="{% if v.livello == 0 %}row-toplevel{% elif v.livello == 1 %}row-level1{% else %}row-sublevel{% endif %}">
+        <td style="padding-left:{{ v.livello * 1.5 + 0.75 }}rem; font-family:monospace; font-size:0.85rem; white-space:nowrap;">
+          {{ v.conto }}
+          {% if v.flag %}<span class="badge" style="background:var(--accent); color:#fff; font-size:0.7rem; margin-left:4px;">{{ v.flag }}</span>{% endif %}
+        </td>
+        <td style="padding-left:{{ v.livello * 1.5 + 0.75 }}rem;">
+          <span {% if v.livello == 0 %}style="font-weight:600;"{% endif %}>{{ v.descrizione }}</span>
+          {% if v.note %}<span style="color:var(--text-light); font-size:0.8rem; display:block;">{{ v.note }}</span>{% endif %}
+        </td>
+        <td style="text-align:right; color:var(--text-light); font-size:0.9rem;">
+          {% if v.saldo_non_rettificato is not none %}
+            &euro; {{ "%.2f"|format(v.saldo_non_rettificato)|replace('.', 'X')|replace(',', '.')|replace('X', ',') }}
+          {% endif %}
+        </td>
+        <td style="text-align:right; font-size:0.9rem; {% if v.rettifiche and v.rettifiche < 0 %}color:#e74c3c;{% elif v.rettifiche and v.rettifiche > 0 %}color:#27ae60;{% else %}color:var(--text-light);{% endif %}">
+          {% if v.rettifiche is not none and v.rettifiche != 0 %}
+            {% if v.rettifiche > 0 %}+{% endif %}&euro; {{ "%.2f"|format(v.rettifiche)|replace('.', 'X')|replace(',', '.')|replace('X', ',') }}
+          {% endif %}
+        </td>
+        <td style="text-align:right; {% if v.livello == 0 %}font-weight:700;{% endif %}">
+          &euro; {{ "%.2f"|format(v.saldo_finale)|replace('.', 'X')|replace(',', '.')|replace('X', ',') }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--bg-dark); font-weight:700; font-size:1rem;">
+        <td colspan="4" style="padding:0.75rem 1rem;">Totale costi</td>
+        <td style="text-align:right; padding:0.75rem 1rem;">
+          &euro; {{ "%.2f"|format(totale)|replace('.', 'X')|replace(',', '.')|replace('X', ',') }}
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% else %}
+<div class="section" style="text-align:center; padding:2rem; color:var(--text-light);">
+  Nessuna voce trovata per questo mese.
+</div>
+{% endif %}
+{% endif %}
+
+<style>
+.row-toplevel { background: var(--bg-card); }
+.row-toplevel td { border-top: 2px solid var(--border); }
+.row-level1 { background: var(--bg-dark); }
+.row-sublevel { background: transparent; }
+.btn-danger {
+  background: #e74c3c;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.btn-danger:hover { background: #c0392b; }
+</style>
+{% endblock %}

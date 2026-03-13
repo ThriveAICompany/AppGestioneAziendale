@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Riconcilia Uscite da CSV{% endblock %}
+
+{% block content %}
+<style>
+  .step-bar { display:flex; gap:0; margin-bottom:2rem; }
+  .step-item { flex:1; text-align:center; padding:0.6rem 1rem; font-size:0.82rem; font-weight:600;
+    background:var(--surface); border:1px solid var(--border); color:var(--text-muted); }
+  .step-item:first-child { border-radius:8px 0 0 8px; }
+  .step-item:last-child  { border-radius:0 8px 8px 0; }
+  .step-item.active { background:var(--primary,#2563eb); color:#fff; border-color:var(--primary,#2563eb); }
+  .step-item.done   { background:#f0fdf4; color:#2e7d32; border-color:#a5d6a7; }
+
+  .section-title { font-size:0.95rem; font-weight:700; margin:1.5rem 0 0.75rem;
+    display:flex; align-items:center; gap:0.5rem; }
+  .badge-count { display:inline-block; background:currentColor; border-radius:20px;
+    padding:1px 8px; font-size:0.72rem; font-weight:700; }
+  .badge-count span { color:#fff; }
+
+  .ric-table { width:100%; border-collapse:collapse; font-size:0.84rem; margin-bottom:1rem; }
+  .ric-table th { background:var(--surface); border:1px solid var(--border);
+    padding:0.45rem 0.75rem; font-weight:600; text-align:left; }
+  .ric-table td { border:1px solid var(--border); padding:0.4rem 0.75rem; vertical-align:middle; }
+  .ric-table .td-importo { text-align:right; font-weight:600; white-space:nowrap; }
+
+  .row-auto   td { background:#f0fdf4; }
+  .row-regola td { background:#fffbeb; }
+  .row-da     td { background:#fff5f5; }
+
+  .arrow-cell { text-align:center; color:#aaa; font-size:1.1rem; }
+  .chip { display:inline-block; font-size:0.72rem; padding:1px 7px; border-radius:4px;
+    background:#f0f0f0; border:1px solid #ddd; color:#666; }
+  .chip.verde  { background:#f0fdf4; border-color:#a5d6a7; color:#2e7d32; }
+  .chip.giallo { background:#fffbeb; border-color:#fcd34d; color:#92400e; }
+  .chip.rosso  { background:#fff5f5; border-color:#ef9a9a; color:#c62828; }
+
+  .da-azioni { display:flex; flex-direction:column; gap:0.4rem; min-width:260px; }
+  .da-azioni select, .da-azioni input { width:100%; padding:0.35rem 0.5rem;
+    border:1px solid var(--border); border-radius:6px; font-size:0.82rem; box-sizing:border-box; }
+  .da-azioni .row-nuovo { display:none; flex-direction:column; gap:0.35rem; margin-top:0.4rem; }
+  .da-azioni .row-nuovo.show { display:flex; }
+  .da-azioni .regola-opts { display:none; margin-top:0.4rem; }
+  .da-azioni .regola-opts.show { display:block; }
+  .da-azioni label { font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:0.4rem; }
+
+  .kpi-row { display:flex; gap:1.25rem; flex-wrap:wrap; margin:1.5rem 0; }
+  .kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:0.75rem 1.25rem; min-width:140px; }
+  .kpi-card .label { font-size:0.75rem; color:var(--text-muted); }
+  .kpi-card .value { font-size:1.3rem; font-weight:700; }
+  .kpi-card.verde .value { color:#2e7d32; }
+  .kpi-card.giallo .value { color:#92400e; }
+  .kpi-card.rosso .value { color:#c62828; }
+
+  .empty-section { font-size:0.85rem; color:var(--text-muted); padding:0.75rem;
+    background:var(--surface); border-radius:8px; border:1px solid var(--border); }
+</style>
+
+<div class="page-header">
+  <h1 class="page-title">Riconcilia Uscite da CSV</h1>
+  <div class="actions">
+    <a href="{{ url_for('costi_anno', anno=anno) }}" class="btn btn-secondary">← Torna ai Costi</a>
+  </div>
+</div>
+
+<!-- Step bar -->
+<div class="step-bar">
+  <div class="step-item {% if step == 1 %}active{% elif step > 1 %}done{% endif %}">1 · Carica CSV</div>
+  <div class="step-item {% if step == 2 %}active{% elif step > 2 %}done{% endif %}">2 · Verifica</div>
+  <div class="step-item {% if step == 3 %}active{% endif %}">3 · Fatto</div>
+</div>
+
+{% if step == 1 %}
+<!-- ───── STEP 1: Upload ───── -->
+{% if errore %}
+<div class="alert alert-danger" style="margin-bottom:1rem;padding:0.75rem 1rem;background:#fff5f5;border:1px solid #ef9a9a;border-radius:8px;color:#c62828;font-size:0.88rem;">
+  {{ errore }}
+</div>
+{% endif %}
+
+<div class="form-card" style="max-width:540px">
+  <h3 style="margin:0 0 1rem;font-size:1rem;">Carica CSV Banca Sella</h3>
+  <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:1.25rem">
+    Il sistema leggerà le uscite dal CSV, le abbinerà automaticamente ai costi pianificati e
+    creerà nuove voci per le uscite non riconosciute.
+  </p>
+  <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="anno" value="{{ anno }}">
+    <div class="form-group">
+      <label>File CSV</label>
+      <input type="file" name="csv_file" accept=".csv" required style="width:100%;padding:0.4rem 0;font-size:0.88rem">
+    </div>
+    <div class="form-actions" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary">Analizza CSV →</button>
+    </div>
+  </form>
+  <hr style="margin:1.25rem 0;border-color:var(--border)">
+  <p style="font-size:0.8rem;color:var(--text-muted);margin:0">
+    <strong>Colonne attese:</strong> Data operazione, Descrizione, Debito/Credito (formato Banca Sella standard)<br>
+    <a href="{{ url_for('riconciliazione_regole') }}" style="font-size:0.8rem">⚙ Gestisci regole di riconoscimento</a>
+  </p>
+</div>
+
+{% elif step == 2 %}
+<!-- ───── STEP 2: Preview ───── -->
+<form method="POST" action="{{ url_for('riconcilia_conferma') }}">
+  <input type="hidden" name="anno" value="{{ anno }}">
+  <input type="hidden" name="auto_match_json" value="{{ auto_match_json }}">
+
+  <!-- KPI riepilogo -->
+  <div class="kpi-row">
+    <div class="kpi-card verde">
+      <div class="label">Abbinati a rata esistente</div>
+      <div class="value">{{ auto_match|length }}</div>
+    </div>
+    <div class="kpi-card giallo">
+      <div class="label">Da assegnare</div>
+      <div class="value">{{ da_assegnare|length }}</div>
+    </div>
+  </div>
+
+  <!-- Sezione 1: Auto-abbinati (sola lettura) -->
+  {% if auto_match %}
+  <div class="section-title" style="color:#2e7d32">
+    ✓ Abbinati automaticamente a rata esistente
+    <span class="badge-count"><span>{{ auto_match|length }}</span></span>
+  </div>
+  <table class="ric-table" style="margin-bottom:1.5rem">
+    <thead><tr>
+      <th>Data</th><th>Descrizione CSV</th><th class="td-importo">Uscita cassa</th>
+      <th></th><th>Costo abbinato</th>
+    </tr></thead>
+    <tbody>
+    {% for item in auto_match %}
+    <tr class="row-auto">
+      <td style="white-space:nowrap;font-size:0.8rem">{{ item.data[8:10] }}/{{ item.data[5:7] }}/{{ item.data[0:4] }}</td>
+      <td>{{ item.descrizione }}</td>
+      <td class="td-importo">€ {{ "%.2f"|format(item.importo)|replace(".", ",") }}</td>
+      <td class="arrow-cell">→</td>
+      <td><strong>{{ item.costo_nome }}</strong> <span class="chip verde">{{ item.categoria }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Sezione 2: Da assegnare — tabella editabile -->
+  <div class="section-title" style="color:#1d4ed8">
+    ✎ Assegna nome e categoria
+    <span class="badge-count" style="background:#1d4ed8"><span>{{ da_assegnare|length }}</span></span>
+  </div>
+  {% if da_assegnare %}
+  <table class="ric-table">
+    <thead><tr>
+      <th>Data</th>
+      <th>Descrizione CSV</th>
+      <th class="td-importo">Uscita cassa</th>
+      <th style="min-width:180px">Nome</th>
+      <th style="min-width:130px">Categoria</th>
+      <th style="text-align:center;width:60px">Ignora</th>
+    </tr></thead>
+    <tbody>
+    {% for item in da_assegnare %}
+    <tr id="riga-{{ loop.index0 }}"
+        style="{% if item.storico %}background:#f0fdf4{% endif %}">
+      <td style="white-space:nowrap;font-size:0.8rem">{{ item.data[8:10] }}/{{ item.data[5:7] }}/{{ item.data[0:4] }}</td>
+      <td style="font-size:0.8rem;color:#555">
+        {{ item.descrizione }}
+        {% if item.storico %}
+        <span class="chip verde" style="margin-left:4px;font-size:0.7rem">✓ mese prec.</span>
+        {% endif %}
+      </td>
+      <td class="td-importo">€ {{ "%.2f"|format(item.importo)|replace(".", ",") }}</td>
+      <td>
+        <input type="hidden" name="da[{{ loop.index0 }}][hash]" value="{{ item.hash }}">
+        <input type="hidden" name="da[{{ loop.index0 }}][data]" value="{{ item.data }}">
+        <input type="hidden" name="da[{{ loop.index0 }}][descrizione]" value="{{ item.descrizione }}">
+        <input type="hidden" name="da[{{ loop.index0 }}][importo]" value="{{ item.importo }}">
+        <input type="text" name="da[{{ loop.index0 }}][nome]" value="{{ item.nome }}"
+               id="nome-{{ loop.index0 }}"
+               style="width:100%;padding:0.3rem 0.5rem;border:1px solid {% if item.storico %}#a5d6a7{% else %}var(--border){% endif %};border-radius:5px;font-size:0.82rem;box-sizing:border-box;{% if item.storico %}background:#f0fdf4{% endif %}">
+      </td>
+      <td>
+        <select name="da[{{ loop.index0 }}][categoria]"
+                style="width:100%;padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:5px;font-size:0.82rem;box-sizing:border-box">
+          {% for c in categorie %}
+          <option value="{{ c }}" {% if c == item.categoria %}selected{% endif %}>{{ c|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td style="text-align:center">
+        <input type="checkbox" name="da[{{ loop.index0 }}][ignora]" value="1"
+               onchange="toggleIgnora(this, {{ loop.index0 }})">
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-section" style="color:#2e7d32">✓ Tutte le uscite sono già state riconciliate.</div>
+  {% endif %}
+
+  <div style="margin-top:1.5rem;display:flex;gap:0.75rem">
+    <button type="submit" class="btn btn-primary">Conferma e importa →</button>
+    <a href="{{ url_for('riconcilia_costi', anno=anno) }}" class="btn btn-secondary">Annulla</a>
+  </div>
+</form>
+
+{% elif step == 3 %}
+<!-- ───── STEP 3: Risultato ───── -->
+<div class="kpi-row">
+  <div class="kpi-card verde">
+    <div class="label">Rate abbinate</div>
+    <div class="value">{{ abbinati }}</div>
+  </div>
+  <div class="kpi-card giallo">
+    <div class="label">Voci create/aggiornate</div>
+    <div class="value">{{ importati }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="label">Ignorati</div>
+    <div class="value">{{ ignorati }}</div>
+  </div>
+</div>
+<p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:1.5rem">
+  Riconciliazione completata.
+</p>
+<div style="display:flex;gap:0.75rem">
+  <a href="{{ url_for('costi_anno', anno=anno) }}" class="btn btn-primary">Vai ai Costi</a>
+  <a href="{{ url_for('riconcilia_costi', anno=anno) }}" class="btn btn-secondary">Importa altro CSV</a>
+</div>
+{% endif %}
+
+<script>
+function toggleIgnora(cb, idx) {
+  const riga = document.getElementById('riga-' + idx);
+  const nomeInput = document.getElementById('nome-' + idx);
+  riga.style.opacity = cb.checked ? '0.4' : '1';
+  if (nomeInput) nomeInput.disabled = cb.checked;
+}
+</script>
+{% endblock %}
