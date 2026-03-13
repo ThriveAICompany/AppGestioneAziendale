@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, Response, jsonify
+from flask import Flask, render_template, request, redirect, url_for, Response, jsonify, session
 from database import get_connection, init_db
 import datetime
 import calendar
@@ -7,6 +7,7 @@ import io
 import json
 import os
 import hashlib
+import functools
 
 try:
     from dotenv import load_dotenv
@@ -15,6 +16,35 @@ except ImportError:
     pass
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+APP_USERNAME = os.environ.get('APP_USERNAME', '')
+APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
+
+def login_required(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        if (request.form.get('username') == APP_USERNAME and
+                request.form.get('password') == APP_PASSWORD):
+            session['logged_in'] = True
+            next_url = request.args.get('next') or url_for('dashboard')
+            return redirect(next_url)
+        error = 'Credenziali non valide.'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 MESI_IT = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
            'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
@@ -274,6 +304,7 @@ def format_eur_filter(value):
 # ─────────────────────────────────────────
 
 @app.route("/impostazioni/saldo", methods=["POST"])
+@login_required
 def imposta_saldo_iniziale():
     valore = request.form.get("saldo_iniziale", "").strip().replace(",", ".")
     try:
@@ -297,6 +328,7 @@ def imposta_saldo_iniziale():
 # ─────────────────────────────────────────
 
 @app.route("/")
+@login_required
 def dashboard():
     conn = get_connection()
     c = conn.cursor()
@@ -447,6 +479,7 @@ def dashboard():
 # ─────────────────────────────────────────
 
 @app.route("/api/cashflow/<int:anno>")
+@login_required
 def api_cashflow(anno):
     conn = get_connection()
     rows = conn.execute("""
@@ -513,6 +546,7 @@ def parse_valore(val):
     return float(s)
 
 @app.route("/pipeline")
+@login_required
 def pipeline():
     conn = get_connection()
     opportunita = conn.execute("""
@@ -542,6 +576,7 @@ def pipeline():
 
 
 @app.route("/pipeline/nuovo", methods=["POST"])
+@login_required
 def nuova_opportunita():
     conn = get_connection()
     conn.execute("""
@@ -565,6 +600,7 @@ def nuova_opportunita():
 
 
 @app.route("/pipeline/<int:oid>/stato", methods=["POST"])
+@login_required
 def aggiorna_stato_opportunita(oid):
     stato = request.form["stato"]
     conn = get_connection()
@@ -575,6 +611,7 @@ def aggiorna_stato_opportunita(oid):
 
 
 @app.route("/pipeline/<int:oid>/modifica", methods=["POST"])
+@login_required
 def modifica_opportunita(oid):
     conn = get_connection()
     conn.execute("""
@@ -600,6 +637,7 @@ def modifica_opportunita(oid):
 
 
 @app.route("/pipeline/<int:oid>/elimina", methods=["POST"])
+@login_required
 def elimina_opportunita(oid):
     conn = get_connection()
     conn.execute("DELETE FROM opportunita WHERE id=%s", (oid,))
@@ -613,6 +651,7 @@ def elimina_opportunita(oid):
 # ─────────────────────────────────────────
 
 @app.route("/partner")
+@login_required
 def partner():
     conn = get_connection()
     lista = conn.execute("""
@@ -642,6 +681,7 @@ def partner():
 
 
 @app.route("/partner/nuovo", methods=["POST"])
+@login_required
 def nuovo_partner():
     conn = get_connection()
     conn.execute("""
@@ -661,6 +701,7 @@ def nuovo_partner():
 
 
 @app.route("/partner/<int:pid>/modifica", methods=["POST"])
+@login_required
 def modifica_partner(pid):
     conn = get_connection()
     conn.execute("""
@@ -681,6 +722,7 @@ def modifica_partner(pid):
 
 
 @app.route("/partner/<int:pid>/elimina", methods=["POST"])
+@login_required
 def elimina_partner(pid):
     conn = get_connection()
     conn.execute("DELETE FROM partners WHERE id=%s", (pid,))
@@ -694,6 +736,7 @@ def elimina_partner(pid):
 # ─────────────────────────────────────────
 
 @app.route("/ricavi")
+@login_required
 def ricavi():
     anno = int(request.args.get('anno', datetime.date.today().year))
     today = datetime.date.today()
@@ -801,6 +844,7 @@ def ricavi():
 
 
 @app.route("/ricavi/nuovo", methods=["POST"])
+@login_required
 def nuovo_ricavo():
     anno        = request.form.get("anno", datetime.date.today().year)
     cliente_id  = request.form.get("cliente_id", "").strip()
@@ -892,6 +936,7 @@ def nuovo_ricavo():
 
 
 @app.route("/ricavi/rate/<int:rid>/modifica", methods=["POST"])
+@login_required
 def modifica_rata_ricavo(rid):
     anno          = request.form.get("anno", datetime.date.today().year)
     data_scadenza = request.form["data_scadenza"]
@@ -923,6 +968,7 @@ def modifica_rata_ricavo(rid):
 
 
 @app.route("/ricavi/contratti/<int:cid>/elimina", methods=["POST"])
+@login_required
 def elimina_ricavo(cid):
     anno = request.form.get("anno", datetime.date.today().year)
     conn = get_connection()
@@ -934,6 +980,7 @@ def elimina_ricavo(cid):
 
 
 @app.route("/rate/<int:rid>/toggle_fattura", methods=["POST"])
+@login_required
 def toggle_fattura(rid):
     conn = get_connection()
     rata = conn.execute("SELECT fatturato FROM rate_contratto WHERE id=%s", (rid,)).fetchone()
@@ -953,6 +1000,7 @@ def toggle_fattura(rid):
 
 
 @app.route("/rate/<int:rid>/toggle_incasso", methods=["POST"])
+@login_required
 def toggle_incasso(rid):
     conn = get_connection()
     rata = conn.execute("SELECT pagato FROM rate_contratto WHERE id=%s", (rid,)).fetchone()
@@ -976,6 +1024,7 @@ def toggle_incasso(rid):
 # ─────────────────────────────────────────
 
 @app.route("/movimenti")
+@login_required
 def movimenti():
     conn = get_connection()
 
@@ -1016,6 +1065,7 @@ def movimenti():
 
 
 @app.route("/movimenti/nuovo", methods=["POST"])
+@login_required
 def nuovo_movimento():
     descrizione = request.form["descrizione"].strip()
     importo = request.form["importo"]
@@ -1046,6 +1096,7 @@ def nuovo_movimento():
 
 
 @app.route("/movimenti/<int:mid>/modifica", methods=["POST"])
+@login_required
 def modifica_movimento(mid):
     anno_back = request.form.get("_anno", "")
     mese_back = request.form.get("_mese", "")
@@ -1074,6 +1125,7 @@ def modifica_movimento(mid):
 
 
 @app.route("/movimenti/<int:mid>/elimina", methods=["POST"])
+@login_required
 def elimina_movimento(mid):
     anno_back = request.form.get("_anno", "")
     mese_back = request.form.get("_mese", "")
@@ -1090,11 +1142,13 @@ def elimina_movimento(mid):
 
 
 @app.route("/movimenti/import", methods=["GET"])
+@login_required
 def import_csv():
     return render_template("import_csv.html", categorie=CATEGORIE, step=1)
 
 
 @app.route("/movimenti/import/upload", methods=["POST"])
+@login_required
 def import_csv_upload():
     f = request.files.get("csv_file")
     if not f or not f.filename:
@@ -1118,6 +1172,7 @@ def import_csv_upload():
 
 
 @app.route("/movimenti/import/conferma", methods=["POST"])
+@login_required
 def import_csv_conferma():
     righe_json = request.form.get("righe_json", "[]")
     categoria_default = request.form.get("categoria_default", "altro")
@@ -1162,6 +1217,7 @@ def import_csv_conferma():
 
 
 @app.route("/movimenti/import/template")
+@login_required
 def import_csv_template():
     contenuto = "data,descrizione,importo,tipo,categoria\n"
     contenuto += "2024-01-15,Pagamento cliente Rossi,1200.00,entrata,contratti\n"
@@ -1179,6 +1235,7 @@ def import_csv_template():
 # ─────────────────────────────────────────
 
 @app.route("/preventivo/<int:cid>")
+@login_required
 def preventivo(cid):
     conn = get_connection()
     contratto = conn.execute("""
@@ -1291,6 +1348,7 @@ def _parse_csv_profis(content_bytes, anno, mese):
 
 
 @app.route('/costi-contabili')
+@login_required
 def costi_contabili():
     conn = get_connection()
     # Mesi disponibili
@@ -1323,6 +1381,7 @@ def costi_contabili():
 
 
 @app.route('/ricavi-contabili/import', methods=['GET', 'POST'])
+@login_required
 def ricavi_contabili_import():
     errore = None
     if request.method == 'POST':
@@ -1377,6 +1436,7 @@ def ricavi_contabili_import():
 
 
 @app.route('/costi-contabili/import', methods=['GET', 'POST'])
+@login_required
 def costi_contabili_import():
     errore = None
     if request.method == 'POST':
@@ -1431,6 +1491,7 @@ def costi_contabili_import():
 
 
 @app.route('/costi-contabili/elimina/<int:anno>/<int:mese>', methods=['POST'])
+@login_required
 def costi_contabili_elimina_mese(anno, mese):
     conn = get_connection()
     conn.execute("DELETE FROM costi_contabili WHERE anno=%s AND mese=%s", (anno, mese))
@@ -1440,6 +1501,7 @@ def costi_contabili_elimina_mese(anno, mese):
 
 
 @app.route('/ricavi-contabili/elimina/<int:anno>/<int:mese>', methods=['POST'])
+@login_required
 def ricavi_contabili_elimina_mese(anno, mese):
     conn = get_connection()
     conn.execute("DELETE FROM ricavi_contabili WHERE anno=%s AND mese=%s", (anno, mese))
@@ -1453,6 +1515,7 @@ def ricavi_contabili_elimina_mese(anno, mese):
 # ─────────────────────────────────────────
 
 @app.route("/scadenze-costi/nuovo", methods=["POST"])
+@login_required
 def nuovo_scadenza_costo():
     nome = request.form["nome"]
     categoria = request.form["categoria"]
@@ -1493,6 +1556,7 @@ def nuovo_scadenza_costo():
 
 
 @app.route("/scadenze-costi/rate/<int:rid>/toggle_pagamento", methods=["POST"])
+@login_required
 def toggle_pagamento_costo(rid):
     conn = get_connection()
     rata = conn.execute("SELECT pagato FROM rate_scadenza_costo WHERE id=%s", (rid,)).fetchone()
@@ -1512,6 +1576,7 @@ def toggle_pagamento_costo(rid):
 
 
 @app.route("/costi-anno")
+@login_required
 def costi_anno():
     anno = int(request.args.get("anno", datetime.date.today().year))
     today = datetime.date.today()
@@ -1601,6 +1666,7 @@ def costi_anno():
 
 
 @app.route("/costi/rate/<int:rid>/modifica", methods=["POST"])
+@login_required
 def modifica_rata_costo(rid):
     nome = request.form["nome"]
     categoria = request.form["categoria"]
@@ -1626,6 +1692,7 @@ def modifica_rata_costo(rid):
 
 
 @app.route("/costi/<int:cid>/elimina", methods=["POST"])
+@login_required
 def elimina_costo(cid):
     conn = get_connection()
     conn.execute("DELETE FROM rate_scadenza_costo WHERE scadenza_costo_id=%s", (cid,))
@@ -1637,6 +1704,7 @@ def elimina_costo(cid):
 
 
 @app.route("/costi-anno/azzera", methods=["POST"])
+@login_required
 def azzera_costi_anno():
     anno = int(request.form.get("anno", datetime.date.today().year))
     conn = get_connection()
@@ -2014,6 +2082,7 @@ def _upsert_movimento(conn, data, descrizione, importo, csv_hash):
 
 
 @app.route("/costi-anno/riconcilia", methods=["GET", "POST"])
+@login_required
 def riconcilia_costi():
     anno = int(request.args.get("anno", datetime.date.today().year))
     if request.method == "GET":
@@ -2050,6 +2119,7 @@ def riconcilia_costi():
 
 
 @app.route("/costi-anno/riconcilia/conferma", methods=["POST"])
+@login_required
 def riconcilia_conferma():
     anno = int(request.form.get("anno", datetime.date.today().year))
     auto_match = json.loads(request.form.get("auto_match_json", "[]"))
@@ -2136,6 +2206,7 @@ def riconcilia_conferma():
 
 
 @app.route("/riconciliazione/regole")
+@login_required
 def riconciliazione_regole():
     conn = get_connection()
     regole = conn.execute("SELECT * FROM riconciliazione_regole ORDER BY id").fetchall()
@@ -2144,6 +2215,7 @@ def riconciliazione_regole():
 
 
 @app.route("/riconciliazione/regola/nuova", methods=["POST"])
+@login_required
 def riconciliazione_regola_nuova():
     conn = get_connection()
     pattern = request.form["pattern"]
@@ -2162,6 +2234,7 @@ def riconciliazione_regola_nuova():
 
 
 @app.route("/riconciliazione/regola/<int:rid>/elimina", methods=["POST"])
+@login_required
 def riconciliazione_regola_elimina(rid):
     conn = get_connection()
     conn.execute("DELETE FROM riconciliazione_regole WHERE id=%s", (rid,))
@@ -2914,6 +2987,7 @@ def _build_cfo_data(conn, anno_ref=None):
 # ─────────────────────────────────────────
 
 @app.route("/pl")
+@login_required
 def pl():
     anno = int(request.args.get('anno', datetime.date.today().year))
     conn = get_connection()
@@ -3093,6 +3167,7 @@ def pl():
 
 
 @app.route("/pl/export-csv/<int:anno>/<int:mese>")
+@login_required
 def pl_export_csv(anno, mese):
     conn = get_connection()
     voci = conn.execute("""
@@ -3113,6 +3188,7 @@ def pl_export_csv(anno, mese):
 
 
 @app.route("/cfo")
+@login_required
 def cfo():
     conn = get_connection()
     anni_cfo = [r[0] for r in conn.execute(
@@ -3132,6 +3208,7 @@ def cfo():
 
 
 @app.route("/cfo/chat", methods=["POST"])
+@login_required
 def cfo_chat():
     try:
         from openai import OpenAI
@@ -3232,6 +3309,7 @@ ALERT ATTIVI:
 # ─── PROIEZIONI ────────────────────────────────────────────────────────────────
 
 @app.route("/proiezioni")
+@login_required
 def proiezioni():
     anno = datetime.date.today().year
     conn = get_connection()
@@ -3299,6 +3377,7 @@ def proiezioni():
 
 
 @app.route("/proiezioni/importa", methods=["POST"])
+@login_required
 def proiezioni_importa():
     anno = datetime.date.today().year
     conn = get_connection()
@@ -3352,6 +3431,7 @@ def proiezioni_importa():
 
 
 @app.route("/proiezioni/uscite/nuovo", methods=["POST"])
+@login_required
 def nuova_proiezione_uscita():
     anno = datetime.date.today().year
     nome = request.form.get('nome', '').strip()
@@ -3375,6 +3455,7 @@ def nuova_proiezione_uscita():
 
 
 @app.route("/proiezioni/uscite/<int:uid>/modifica", methods=["POST"])
+@login_required
 def modifica_proiezione_uscita(uid):
     nome = request.form.get('nome', '').strip()
     importo = float(request.form.get('importo_mensile', 0) or 0)
@@ -3397,6 +3478,7 @@ def modifica_proiezione_uscita(uid):
 
 
 @app.route("/proiezioni/uscite/<int:uid>/elimina", methods=["POST"])
+@login_required
 def elimina_proiezione_uscita(uid):
     conn = get_connection()
     conn.execute("DELETE FROM proiezioni_uscite WHERE id=%s", (uid,))
