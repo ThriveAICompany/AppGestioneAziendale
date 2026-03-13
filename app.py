@@ -366,18 +366,19 @@ def dashboard():
     row = c.execute("SELECT valore FROM impostazioni WHERE chiave='saldo_iniziale_conto'").fetchone()
     saldo_iniziale = float(row[0]) if row else 0.0
 
-    # Saldo cumulativo fino alla data limite dell'anno selezionato
+    # Saldo cumulativo: parte da 5142.27 il 01/01/2026, considera solo movimenti da quella data
+    SALDO_DATA_INIZIO = '2026-01-01'
     if anno_kpi < current_year:
         saldo_data_limite = f"{anno_kpi}-12-31"
     else:
         saldo_data_limite = datetime.date.today().isoformat()
 
     saldo = saldo_iniziale + float(c.execute(
-        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='entrata' AND data<=%s",
-        (saldo_data_limite,)
+        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='entrata' AND data>=%s AND data<=%s",
+        (SALDO_DATA_INIZIO, saldo_data_limite)
     ).fetchone()[0]) - float(c.execute(
-        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='uscita' AND data<=%s",
-        (saldo_data_limite,)
+        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='uscita' AND data>=%s AND data<=%s",
+        (SALDO_DATA_INIZIO, saldo_data_limite)
     ).fetchone()[0])
     num_clienti = c.execute(
         "SELECT COUNT(DISTINCT cliente_id) FROM contratti WHERE stato = 'attivo'"
@@ -2285,16 +2286,17 @@ def _build_cfo_data(conn, anno_ref=None):
         today = actual_today
     c = conn.cursor()
 
-    # --- Saldo al giorno di riferimento ---
+    # --- Saldo al giorno di riferimento (base fissa 5142.27 al 01/01/2026) ---
+    SALDO_DATA_INIZIO = '2026-01-01'
     row = c.execute("SELECT valore FROM impostazioni WHERE chiave='saldo_iniziale_conto'").fetchone()
     saldo_iniziale = float(row[0]) if row else 0.0
     totale_entrate_all = c.execute(
-        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='entrata' AND data <= %s",
-        (today.isoformat(),)
+        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='entrata' AND data >= %s AND data <= %s",
+        (SALDO_DATA_INIZIO, today.isoformat())
     ).fetchone()[0]
     totale_uscite_all = c.execute(
-        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='uscita' AND data <= %s",
-        (today.isoformat(),)
+        "SELECT COALESCE(SUM(importo),0) FROM movimenti WHERE tipo='uscita' AND data >= %s AND data <= %s",
+        (SALDO_DATA_INIZIO, today.isoformat())
     ).fetchone()[0]
     saldo_attuale = saldo_iniziale + totale_entrate_all - totale_uscite_all
 

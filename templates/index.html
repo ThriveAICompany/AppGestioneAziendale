@@ -44,11 +44,6 @@
     <div class="kpi-label">
       Saldo Conto
       <div style="display:flex;align-items:center;gap:.4rem;margin-left:auto">
-        <button onclick="document.getElementById('form-saldo-iniziale').classList.toggle('hidden')"
-                title="Imposta saldo di partenza"
-                style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:0;line-height:1">
-          <i data-lucide="pencil" style="width:14px;height:14px"></i>
-        </button>
         <div class="kpi-icon"><i data-lucide="wallet"></i></div>
       </div>
     </div>
@@ -62,22 +57,6 @@
         <span class="trend-badge trend-down"><i data-lucide="trending-down"></i> Negativo</span>
       {% endif %}
       <span class="trend-sub">al {{ saldo_data_limite }}</span>
-    </div>
-
-    <!-- Mini-form saldo iniziale -->
-    <div id="form-saldo-iniziale" class="hidden"
-         style="margin-top:.8rem;padding-top:.75rem;border-top:1px solid var(--border)">
-      <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.4rem;font-weight:600">
-        Saldo di partenza (prima di qualsiasi movimento registrato)
-      </div>
-      <form action="{{ url_for('imposta_saldo_iniziale') }}" method="POST"
-            style="display:flex;gap:.4rem;align-items:center">
-        <input type="hidden" name="anno_kpi" value="{{ anno_kpi }}">
-        <input type="number" name="saldo_iniziale" step="0.01"
-               value="{{ saldo_iniziale }}"
-               style="flex:1;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;min-width:0">
-        <button type="submit" class="btn btn-primary" style="padding:.3rem .7rem;font-size:.82rem;white-space:nowrap">Salva</button>
-      </form>
     </div>
   </div>
 
