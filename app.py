@@ -540,9 +540,12 @@ def api_cashflow(anno):
 def api_ricavi_contabili(anno):
     conn = get_connection()
     rows = conn.execute("""
-        SELECT mese, COALESCE(SUM(saldo_finale), 0) as totale
-        FROM ricavi_contabili
-        WHERE anno=%s AND livello=0
+        SELECT
+            CAST(SUBSTRING(rc.data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
+            COALESCE(SUM(rc.importo), 0) as totale
+        FROM rate_contratto rc
+        JOIN contratti ct ON rc.contratto_id = ct.id
+        WHERE LEFT(rc.data_scadenza, 4) = %s
         GROUP BY mese
         ORDER BY mese
     """, (str(anno),)).fetchall()
