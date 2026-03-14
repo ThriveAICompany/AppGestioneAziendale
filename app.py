@@ -535,6 +535,26 @@ def api_cashflow(anno):
     return jsonify({'anno': anno, 'mesi': result})
 
 
+@app.route("/api/ricavi-contabili/<int:anno>")
+@login_required
+def api_ricavi_contabili(anno):
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT mese, COALESCE(SUM(saldo_finale), 0) as totale
+        FROM ricavi_contabili
+        WHERE anno=%s AND livello=0
+        GROUP BY mese
+        ORDER BY mese
+    """, (str(anno),)).fetchall()
+    conn.close()
+
+    mesi_data = {i: 0.0 for i in range(1, 13)}
+    for row in rows:
+        mesi_data[row['mese']] = round(float(row['totale']), 2)
+
+    return jsonify({'anno': anno, 'mesi': [mesi_data[i] for i in range(1, 13)]})
+
+
 # ─────────────────────────────────────────
 # PIPELINE CRM
 # ─────────────────────────────────────────

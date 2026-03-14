@@ -202,6 +202,28 @@
   </div>
 </div>
 
+<!-- ── Dettaglio Ricavi (tabella) ── -->
+<div class="card" style="padding:0;overflow:hidden;margin-top:1rem">
+  <div class="card-header">
+    <div class="card-title">Dettaglio Ricavi</div>
+  </div>
+  <div class="cashflow-table-wrap" style="box-shadow:none;border:none;border-radius:0">
+    <table class="cashflow-table">
+      <thead>
+        <tr>
+          <th class="cf-col-label"></th>
+          <th>Gen</th><th>Feb</th><th>Mar</th><th>Apr</th><th>Mag</th><th>Giu</th>
+          <th>Lug</th><th>Ago</th><th>Set</th><th>Ott</th><th>Nov</th><th>Dic</th>
+          <th class="cf-col-total">Totale</th>
+        </tr>
+      </thead>
+      <tbody id="ricaviTbody">
+        <tr><td colspan="14" class="cf-loading">Caricamento...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ── Abbonamenti attivi ── -->
 {% if abbonamenti_mrr %}
 <div class="card" style="padding:0;overflow:hidden;margin-top:1rem">
@@ -398,11 +420,56 @@
     });
   }
 
+  function renderRicaviTable(mesi) {
+    const IVA = 0.22;
+    const tbody = document.getElementById('ricaviTbody');
+
+    const totNetti = mesi.reduce((s, v) => s + v, 0);
+    const totIva   = totNetti * IVA;
+    const totLordo = totNetti + totIva;
+
+    function cells(fn) { return mesi.map(v => `<td>${fn(v)}</td>`).join(''); }
+
+    let html = '';
+
+    html += `<tr class="cf-row cf-variazione">
+      <td class="cf-label"><strong>Ricavi netti</strong></td>
+      ${cells(v => `<span class="${v > 0 ? 'positivo' : ''}">${v > 0 ? fmtEur(v) : '<span class="cf-empty">—</span>'}</span>`)}
+      <td class="cf-total positivo">${fmtEur(totNetti)}</td>
+    </tr>`;
+
+    html += `<tr class="cf-row">
+      <td class="cf-label" style="color:var(--text-muted)">IVA (22%)</td>
+      ${cells(v => v > 0 ? `<span style="color:var(--text-muted)">${fmtEur(v * IVA)}</span>` : '<span class="cf-empty">—</span>')}
+      <td class="cf-total" style="color:var(--text-muted)">${fmtEur(totIva)}</td>
+    </tr>`;
+
+    html += `<tr class="cf-row cf-group-header" style="cursor:default">
+      <td class="cf-label"><strong>Totale lordo</strong></td>
+      ${cells(v => `<span class="${v > 0 ? 'positivo' : ''}">${v > 0 ? fmtEur(v * (1 + IVA)) : '<span class="cf-empty">—</span>'}</span>`)}
+      <td class="cf-total positivo">${fmtEur(totLordo)}</td>
+    </tr>`;
+
+    tbody.innerHTML = html;
+  }
+
+  async function loadRicavi(anno) {
+    document.getElementById('ricaviTbody').innerHTML =
+      '<tr><td colspan="14" class="cf-loading">Caricamento...</td></tr>';
+    const resp = await fetch('/api/ricavi-contabili/' + anno);
+    const data = await resp.json();
+    renderRicaviTable(data.mesi);
+  }
+
+  async function loadAnno(anno) {
+    await Promise.all([loadCashflow(anno), loadRicavi(anno)]);
+  }
+
   document.querySelectorAll('.year-btn').forEach(btn => {
-    btn.addEventListener('click', () => loadCashflow(parseInt(btn.dataset.year)));
+    btn.addEventListener('click', () => loadAnno(parseInt(btn.dataset.year)));
   });
 
-  loadCashflow({{ current_year }});
+  loadAnno({{ current_year }});
 })();
 </script>
 
