@@ -438,10 +438,15 @@ def _migrate(conn):
             piano_rientro_id INTEGER NOT NULL REFERENCES piani_rientro(id) ON DELETE CASCADE,
             data_scadenza TEXT NOT NULL,
             importo REAL NOT NULL DEFAULT 0,
+            quota_interessi REAL NOT NULL DEFAULT 0,
             pagato INTEGER DEFAULT 0,
             data_pagamento TEXT
         )
     """)
+    # Migrazione: aggiungi quota_interessi se mancante
+    existing = _get_columns(c, 'rate_piano_rientro')
+    if 'quota_interessi' not in existing:
+        c.execute("ALTER TABLE rate_piano_rientro ADD COLUMN quota_interessi REAL NOT NULL DEFAULT 0")
 
     # Aggiungi pattern aggiuntivi se mancanti
     preset_aggiuntivi = [
@@ -619,5 +624,33 @@ def _migrate(conn):
                     (finanziamento_id, data_scadenza, rata_totale, quota_capitale, quota_interessi, pagato)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (fin_id, data, rata, capitale, interessi, pagato))
+
+    # Seed: Piano rientro Contributi INPS dipendenti aprile 2024
+    c.execute("SELECT id FROM piani_rientro WHERE nome='Contributi INPS dipendenti - Aprile 2024'")
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO piani_rientro (nome, tipo, ente, anno_riferimento, note)
+            VALUES ('Contributi INPS dipendenti - Aprile 2024', 'contributi',
+                    'INPS / Agenzia delle Entrate', 2024,
+                    'Rateizzazione contributi dipendenti apr 2024 - 6 rate mensili ogni 29 del mese')
+            RETURNING id
+        """)
+        pid = c.fetchone()[0]
+        # (data_scadenza, importo_cassa, quota_interessi, pagato)
+        # Jan-Mar 2026 già passati → pagato=1
+        rate_inps = [
+            ('2026-01-29', 120.47, 5.89, 1),
+            ('2026-02-28', 120.47, 4.93, 1),
+            ('2026-03-29', 120.47, 3.96, 1),
+            ('2026-04-29', 120.47, 2.98, 0),
+            ('2026-05-29', 120.47, 2.00, 0),
+            ('2026-06-29', 120.47, 1.00, 0),
+        ]
+        for data, importo, interessi, pagato in rate_inps:
+            c.execute("""
+                INSERT INTO rate_piano_rientro
+                    (piano_rientro_id, data_scadenza, importo, quota_interessi, pagato)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (pid, data, importo, interessi, pagato))
 
     conn.commit()

@@ -3740,12 +3740,13 @@ def elimina_piano_rientro(pid):
 def nuova_rata_piano_rientro(pid):
     conn = get_connection()
     conn.execute("""
-        INSERT INTO rate_piano_rientro (piano_rientro_id, data_scadenza, importo)
-        VALUES (%s, %s, %s)
+        INSERT INTO rate_piano_rientro (piano_rientro_id, data_scadenza, importo, quota_interessi)
+        VALUES (%s, %s, %s, %s)
     """, (
         pid,
         request.form["data_scadenza"],
         float(request.form.get("importo") or 0),
+        float(request.form.get("quota_interessi") or 0),
     ))
     conn.commit()
     conn.close()

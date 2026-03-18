@@ -377,7 +377,9 @@
       <thead>
         <tr>
           <th>Data scadenza</th>
-          <th style="text-align:right">Importo (uscita cassa)</th>
+          <th style="text-align:right">Uscita cassa</th>
+          <th style="text-align:right">di cui interessi (P&amp;L)</th>
+          <th style="text-align:right">Quota capitale</th>
           <th style="text-align:center">Pagata</th>
           <th></th>
         </tr>
@@ -387,6 +389,8 @@
         <tr class="{% if r.pagato %}pagata{% elif r.data_scadenza < today %}scaduta{% endif %}" id="rpiano-{{ r.id }}">
           <td>{{ r.data_scadenza[8:10] }}/{{ r.data_scadenza[5:7] }}/{{ r.data_scadenza[0:4] }}</td>
           <td style="text-align:right">€ {{ r.importo|format_eur }}</td>
+          <td style="text-align:right;color:var(--text-muted)">{% if r.quota_interessi %}€ {{ r.quota_interessi|format_eur }}{% else %}—{% endif %}</td>
+          <td style="text-align:right;color:var(--text-muted)">€ {{ (r.importo - (r.quota_interessi or 0))|format_eur }}</td>
           <td style="text-align:center">
             <button class="btn-pagata {% if r.pagato %}on{% endif %}"
                     onclick="togglePagamentoPiano({{ r.id }}, this)" title="Segna pagata">✓</button>
@@ -402,7 +406,7 @@
         <tr class="tot-row">
           <td>Totale</td>
           <td style="text-align:right">€ {{ p.tot_importo|format_eur }}</td>
-          <td colspan="2"></td>
+          <td colspan="3"></td>
         </tr>
       </tbody>
     </table>
@@ -428,8 +432,12 @@
             <input type="date" name="data_scadenza" required />
           </div>
           <div class="fg">
-            <label>Importo (€) *</label>
+            <label>Uscita cassa (€) *</label>
             <input type="number" name="importo" step="0.01" min="0" required />
+          </div>
+          <div class="fg">
+            <label>di cui interessi (€)</label>
+            <input type="number" name="quota_interessi" step="0.01" min="0" placeholder="0.00" />
           </div>
           <button type="submit" class="btn btn-primary btn-sm" style="align-self:flex-end">Aggiungi</button>
           <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-end"
