@@ -1245,12 +1245,14 @@ def import_csv_conferma():
         ).fetchall()
     )
 
+    seen_in_batch = set()
     for r in righe:
         codice_banca = r.get('codice_banca') or None
         if codice_banca:
-            if codice_banca in existing_codici:
+            if codice_banca in existing_codici or codice_banca in seen_in_batch:
                 duplicati += 1
                 continue
+            seen_in_batch.add(codice_banca)
         else:
             key = (r['data'], r['tipo'], round(float(r['importo']), 2), r['descrizione'])
             if key in existing_fallback:
