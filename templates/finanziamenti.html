@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+{% block title %}Finanziamenti & Piani di Rientro{% endblock %}
+
+{% block content %}
+<style>
+.fin-section-title {
+  font-size: 1rem; font-weight: 700; margin: 2rem 0 1rem;
+  display: flex; align-items: center; gap: .6rem;
+}
+.fin-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
+}
+.fin-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .9rem 1.2rem; cursor: pointer; gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.fin-card-header:hover { background: var(--surface-hover, #f8fafa); }
+.fin-card-title { font-weight: 700; font-size: .95rem; }
+.fin-card-meta { font-size: .78rem; color: var(--text-muted); margin-top: .1rem; }
+.fin-kpi-row {
+  display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
+}
+.fin-kpi { text-align: right; }
+.fin-kpi-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.fin-kpi-val { font-size: .95rem; font-weight: 700; }
+.fin-chevron { font-size: .75rem; color: var(--text-muted); transition: transform .2s; }
+.fin-chevron.open { transform: rotate(90deg); }
+.fin-body { display: none; padding: 1rem 1.2rem 1.2rem; }
+.fin-body.open { display: block; }
+
+/* Tabella rate */
+.rate-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .75rem; }
+.rate-table th { text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem;
+  border-bottom: 2px solid var(--border); }
+.rate-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); }
+.rate-table tr:last-child td { border-bottom: none; }
+.rate-table tr.pagata td { opacity: .55; }
+.rate-table tr.scaduta td:first-child { color: var(--red); }
+
+.btn-pagata {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+  background: transparent; cursor: pointer; font-size: .75rem; font-weight: 700;
+  color: var(--text-muted); transition: all .15s;
+}
+.btn-pagata.on { background: var(--green); border-color: var(--green); color: #fff; }
+.btn-pagata:hover:not(.on) { border-color: var(--primary); color: var(--primary); }
+
+/* Form aggiunta rata inline */
+.form-rata-inline {
+  display: none; margin-top: .75rem;
+  background: #f8fafa; border-radius: var(--radius-sm);
+  padding: .8rem 1rem; border: 1px solid var(--border);
+}
+.form-rata-inline.open { display: block; }
+.form-rata-row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; }
+.form-rata-row .fg { display: flex; flex-direction: column; gap: .2rem; }
+.form-rata-row label { font-size: .72rem; font-weight: 600; color: var(--text-muted); }
+.form-rata-row input {
+  padding: .35rem .6rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: .85rem; width: 130px;
+}
+
+/* Form nuovo finanziamento / piano */
+.form-nuovo {
+  display: none; background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.2rem; margin-bottom: 1.2rem;
+}
+.form-nuovo.open { display: block; }
+.form-row-flex { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.form-row-flex .fg { display: flex; flex-direction: column; gap: .25rem; flex: 1; min-width: 150px; }
+.form-row-flex label { font-size: .78rem; font-weight: 600; color: var(--text-muted); }
+.form-row-flex input, .form-row-flex select, .form-row-flex textarea {
+  padding: .45rem .7rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: .88rem; background: var(--surface);
+}
+
+.badge-tipo {
+  font-size: .68rem; font-weight: 700; padding: .15rem .5rem;
+  border-radius: 999px; text-transform: uppercase; letter-spacing: .04em;
+}
+.badge-tipo.mutuo       { background: #dbeafe; color: #1d4ed8; }
+.badge-tipo.leasing     { background: #ede9fe; color: #7c3aed; }
+.badge-tipo.finanziamento { background: #fef3c7; color: #92400e; }
+.badge-tipo.contributi  { background: #fee2e2; color: #b91c1c; }
+.badge-tipo.iva         { background: #fef9c3; color: #854d0e; }
+.badge-tipo.altro       { background: #f1f5f9; color: #475569; }
+
+.tot-row td { font-weight: 700; background: #f8fafa; }
+</style>
+
+<!-- Header -->
+<div class="page-header" style="margin-bottom:1.5rem">
+  <div>
+    <h1 class="page-title">Finanziamenti & Piani di Rientro</h1>
+    <p class="text-muted" style="font-size:.88rem;margin-top:.2rem">
+      Gestisci piani di ammortamento e rateizzazioni fiscali
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ -->
+<!-- SEZIONE 1 — FINANZIAMENTI BANCARI     -->
+<!-- ══════════════════════════════════════ -->
+<div class="fin-section-title">
+  🏦 Finanziamenti Bancari
+  <button class="btn btn-primary btn-sm" onclick="toggleForm('form-nuovo-fin')" style="margin-left:auto;font-size:.8rem">
+    + Nuovo finanziamento
+  </button>
+</div>
+
+<!-- Form nuovo finanziamento -->
+<div class="form-nuovo" id="form-nuovo-fin">
+  <h3 style="font-size:.95rem;font-weight:700;margin-bottom:.9rem">Nuovo Finanziamento</h3>
+  <form method="POST" action="{{ url_for('nuovo_finanziamento') }}">
+    <div class="form-row-flex">
+      <div class="fg">
+        <label>Nome *</label>
+        <input type="text" name="nome" required placeholder="Es. Mutuo sede" />
+      </div>
+      <div class="fg">
+        <label>Banca</label>
+        <input type="text" name="banca" placeholder="Es. Intesa Sanpaolo" />
+      </div>
+      <div class="fg">
+        <label>Importo originale (€)</label>
+        <input type="number" name="importo_originale" step="0.01" min="0" placeholder="0.00" />
+      </div>
+      <div class="fg">
+        <label>Data inizio</label>
+        <input type="date" name="data_inizio" />
+      </div>
+      <div class="fg">
+        <label>Data fine</label>
+        <input type="date" name="data_fine" />
+      </div>
+    </div>
+    <div class="form-row-flex">
+      <div class="fg">
+        <label>Note</label>
+        <input type="text" name="note" placeholder="Facoltativo" />
+      </div>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-top:.5rem">
+      <button type="submit" class="btn btn-primary btn-sm">Salva</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleForm('form-nuovo-fin')">Annulla</button>
+    </div>
+  </form>
+</div>
+
+{% if not fins %}
+<div class="card" style="text-align:center;padding:2rem;color:var(--text-muted)">
+  Nessun finanziamento ancora. Clicca "+ Nuovo finanziamento" per iniziare.
+</div>
+{% endif %}
+
+{% for f in fins %}
+{% set rate = rate_per_fin[f.id] %}
+<div class="fin-card" id="fin-{{ f.id }}">
+  <div class="fin-card-header" onclick="toggleFin('finbody-{{ f.id }}', 'finchev-{{ f.id }}')">
+    <div>
+      <div class="fin-card-title">
+        {{ f.nome }}
+        {% if f.banca %}<span style="font-weight:400;color:var(--text-muted);font-size:.85rem"> — {{ f.banca }}</span>{% endif %}
+      </div>
+      <div class="fin-card-meta">
+        {% if f.data_inizio %}{{ f.data_inizio }} {% endif %}
+        {% if f.data_fine %}→ {{ f.data_fine }}{% endif %}
+        &nbsp;·&nbsp; {{ f.n_rate }} rate totali
+      </div>
+    </div>
+    <div class="fin-kpi-row">
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Debito residuo</div>
+        <div class="fin-kpi-val negativo">€ {{ f.debito_residuo|format_eur }}</div>
+      </div>
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Cassa residua</div>
+        <div class="fin-kpi-val">€ {{ f.cassa_residua|format_eur }}</div>
+      </div>
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Tot. interessi</div>
+        <div class="fin-kpi-val">€ {{ f.tot_interessi|format_eur }}</div>
+      </div>
+      <span class="fin-chevron" id="finchev-{{ f.id }}">▶</span>
+    </div>
+  </div>
+
+  <div class="fin-body" id="finbody-{{ f.id }}">
+
+    {% if rate %}
+    <table class="rate-table">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th style="text-align:right">Rata totale</th>
+          <th style="text-align:right">Quota capitale</th>
+          <th style="text-align:right">Quota interessi</th>
+          <th style="text-align:right">Debito residuo</th>
+          <th style="text-align:center">Pagata</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set ns = namespace(res=f.debito_residuo) %}
+        {% for r in rate %}
+        {% if not r.pagato %}{% set ns.res = ns.res - r.quota_capitale %}{% endif %}
+        <tr class="{% if r.pagato %}pagata{% elif r.data_scadenza < today %}scaduta{% endif %}" id="rfin-{{ r.id }}">
+          <td>{{ r.data_scadenza[8:10] }}/{{ r.data_scadenza[5:7] }}/{{ r.data_scadenza[0:4] }}</td>
+          <td style="text-align:right">€ {{ r.rata_totale|format_eur }}</td>
+          <td style="text-align:right">€ {{ r.quota_capitale|format_eur }}</td>
+          <td style="text-align:right;color:var(--text-muted)">€ {{ r.quota_interessi|format_eur }}</td>
+          <td style="text-align:right;color:var(--text-muted)">
+            {% if not r.pagato %}€ {{ (f.debito_residuo)|format_eur }}{% else %}—{% endif %}
+          </td>
+          <td style="text-align:center">
+            <button class="btn-pagata {% if r.pagato %}on{% endif %}"
+                    onclick="togglePagamentoFin({{ r.id }}, this)" title="Segna pagata">✓</button>
+          </td>
+          <td>
+            <form method="POST" action="{{ url_for('elimina_rata_finanziamento', rid=r.id) }}"
+                  onsubmit="return confirm('Eliminare questa rata?')" style="display:inline">
+              <button type="submit" class="btn-icon" style="opacity:.4;font-size:.75rem">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="tot-row">
+          <td>Totale</td>
+          <td style="text-align:right">€ {{ (f.tot_capitale + f.tot_interessi)|format_eur }}</td>
+          <td style="text-align:right">€ {{ f.tot_capitale|format_eur }}</td>
+          <td style="text-align:right">€ {{ f.tot_interessi|format_eur }}</td>
+          <td colspan="3"></td>
+        </tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:.5rem">Nessuna rata inserita.</p>
+    {% endif %}
+
+    <!-- Form aggiungi rata -->
+    <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-secondary btn-sm" onclick="toggleForm('form-rata-fin-{{ f.id }}')">
+        + Aggiungi rata
+      </button>
+      <form method="POST" action="{{ url_for('elimina_finanziamento', fid=f.id) }}"
+            onsubmit="return confirm('Eliminare {{ f.nome }} e tutte le sue rate?')" style="margin-left:auto">
+        <button type="submit" class="btn btn-secondary btn-sm" style="color:var(--red)">Elimina finanziamento</button>
+      </form>
+    </div>
+
+    <div class="form-rata-inline" id="form-rata-fin-{{ f.id }}">
+      <form method="POST" action="{{ url_for('nuova_rata_finanziamento', fid=f.id) }}">
+        <div class="form-rata-row">
+          <div class="fg">
+            <label>Data scadenza *</label>
+            <input type="date" name="data_scadenza" required />
+          </div>
+          <div class="fg">
+            <label>Rata totale (€) *</label>
+            <input type="number" name="rata_totale" step="0.01" min="0" required />
+          </div>
+          <div class="fg">
+            <label>Quota capitale (€) *</label>
+            <input type="number" name="quota_capitale" step="0.01" min="0" required />
+          </div>
+          <div class="fg">
+            <label>Quota interessi (€) *</label>
+            <input type="number" name="quota_interessi" step="0.01" min="0" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" style="align-self:flex-end">Aggiungi</button>
+          <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-end"
+                  onclick="toggleForm('form-rata-fin-{{ f.id }}')">Annulla</button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endfor %}
+
+
+<!-- ══════════════════════════════════════ -->
+<!-- SEZIONE 2 — PIANI DI RIENTRO FISCALI  -->
+<!-- ══════════════════════════════════════ -->
+<div class="fin-section-title" id="piani" style="margin-top:2.5rem">
+  📋 Piani di Rientro Fiscali
+  <button class="btn btn-primary btn-sm" onclick="toggleForm('form-nuovo-piano')" style="margin-left:auto;font-size:.8rem">
+    + Nuovo piano
+  </button>
+</div>
+
+<!-- Form nuovo piano -->
+<div class="form-nuovo" id="form-nuovo-piano">
+  <h3 style="font-size:.95rem;font-weight:700;margin-bottom:.9rem">Nuovo Piano di Rientro</h3>
+  <form method="POST" action="{{ url_for('nuovo_piano_rientro') }}">
+    <div class="form-row-flex">
+      <div class="fg">
+        <label>Nome *</label>
+        <input type="text" name="nome" required placeholder="Es. IVA arretrata 2023" />
+      </div>
+      <div class="fg">
+        <label>Tipo *</label>
+        <select name="tipo">
+          <option value="contributi">Contributi anni prec.</option>
+          <option value="iva">IVA arretrata</option>
+          <option value="irpef">IRPEF/IRES arretrata</option>
+          <option value="altro">Altro</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Ente</label>
+        <input type="text" name="ente" placeholder="Es. Agenzia delle Entrate" />
+      </div>
+      <div class="fg">
+        <label>Anno di riferimento</label>
+        <input type="number" name="anno_riferimento" min="2010" max="2030" placeholder="Es. 2023" />
+      </div>
+    </div>
+    <div class="form-row-flex">
+      <div class="fg">
+        <label>Note</label>
+        <input type="text" name="note" placeholder="Facoltativo" />
+      </div>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-top:.5rem">
+      <button type="submit" class="btn btn-primary btn-sm">Salva</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleForm('form-nuovo-piano')">Annulla</button>
+    </div>
+  </form>
+</div>
+
+{% if not piani %}
+<div class="card" style="text-align:center;padding:2rem;color:var(--text-muted)">
+  Nessun piano di rientro ancora. Clicca "+ Nuovo piano" per iniziare.
+</div>
+{% endif %}
+
+{% for p in piani %}
+{% set rate = rate_per_piano[p.id] %}
+<div class="fin-card" id="piano-{{ p.id }}">
+  <div class="fin-card-header" onclick="toggleFin('pianobody-{{ p.id }}', 'pianochev-{{ p.id }}')">
+    <div>
+      <div class="fin-card-title">
+        {{ p.nome }}
+        <span class="badge-tipo {{ p.tipo }}" style="margin-left:.4rem">{{ p.tipo }}</span>
+      </div>
+      <div class="fin-card-meta">
+        {% if p.ente %}{{ p.ente }}{% endif %}
+        {% if p.anno_riferimento %}&nbsp;·&nbsp; anno {{ p.anno_riferimento }}{% endif %}
+        &nbsp;·&nbsp; {{ p.n_rate }} rate
+      </div>
+    </div>
+    <div class="fin-kpi-row">
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Totale</div>
+        <div class="fin-kpi-val">€ {{ p.tot_importo|format_eur }}</div>
+      </div>
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Pagato</div>
+        <div class="fin-kpi-val positivo">€ {{ p.pagato_tot|format_eur }}</div>
+      </div>
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Residuo</div>
+        <div class="fin-kpi-val negativo">€ {{ p.residuo|format_eur }}</div>
+      </div>
+      <span class="fin-chevron" id="pianochev-{{ p.id }}">▶</span>
+    </div>
+  </div>
+
+  <div class="fin-body" id="pianobody-{{ p.id }}">
+
+    {% if rate %}
+    <table class="rate-table">
+      <thead>
+        <tr>
+          <th>Data scadenza</th>
+          <th style="text-align:right">Importo (uscita cassa)</th>
+          <th style="text-align:center">Pagata</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rate %}
+        <tr class="{% if r.pagato %}pagata{% elif r.data_scadenza < today %}scaduta{% endif %}" id="rpiano-{{ r.id }}">
+          <td>{{ r.data_scadenza[8:10] }}/{{ r.data_scadenza[5:7] }}/{{ r.data_scadenza[0:4] }}</td>
+          <td style="text-align:right">€ {{ r.importo|format_eur }}</td>
+          <td style="text-align:center">
+            <button class="btn-pagata {% if r.pagato %}on{% endif %}"
+                    onclick="togglePagamentoPiano({{ r.id }}, this)" title="Segna pagata">✓</button>
+          </td>
+          <td>
+            <form method="POST" action="{{ url_for('elimina_rata_piano_rientro', rid=r.id) }}"
+                  onsubmit="return confirm('Eliminare questa rata?')" style="display:inline">
+              <button type="submit" class="btn-icon" style="opacity:.4;font-size:.75rem">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="tot-row">
+          <td>Totale</td>
+          <td style="text-align:right">€ {{ p.tot_importo|format_eur }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:.5rem">Nessuna rata inserita.</p>
+    {% endif %}
+
+    <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-secondary btn-sm" onclick="toggleForm('form-rata-piano-{{ p.id }}')">
+        + Aggiungi rata
+      </button>
+      <form method="POST" action="{{ url_for('elimina_piano_rientro', pid=p.id) }}"
+            onsubmit="return confirm('Eliminare {{ p.nome }} e tutte le rate?')" style="margin-left:auto">
+        <button type="submit" class="btn btn-secondary btn-sm" style="color:var(--red)">Elimina piano</button>
+      </form>
+    </div>
+
+    <div class="form-rata-inline" id="form-rata-piano-{{ p.id }}">
+      <form method="POST" action="{{ url_for('nuova_rata_piano_rientro', pid=p.id) }}">
+        <div class="form-rata-row">
+          <div class="fg">
+            <label>Data scadenza *</label>
+            <input type="date" name="data_scadenza" required />
+          </div>
+          <div class="fg">
+            <label>Importo (€) *</label>
+            <input type="number" name="importo" step="0.01" min="0" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" style="align-self:flex-end">Aggiungi</button>
+          <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-end"
+                  onclick="toggleForm('form-rata-piano-{{ p.id }}')">Annulla</button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endfor %}
+
+<script>
+function toggleForm(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+function toggleFin(bodyId, chevId) {
+  document.getElementById(bodyId).classList.toggle('open');
+  document.getElementById(chevId).classList.toggle('open');
+}
+
+function togglePagamentoFin(rid, btn) {
+  btn.disabled = true;
+  fetch(`/finanziamenti/rate/${rid}/toggle`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      btn.classList.toggle('on', !!data.pagato);
+      const row = document.getElementById('rfin-' + rid);
+      if (row) row.className = data.pagato ? 'pagata' : '';
+      btn.disabled = false;
+    });
+}
+
+function togglePagamentoPiano(rid, btn) {
+  btn.disabled = true;
+  fetch(`/piani-rientro/rate/${rid}/toggle`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      btn.classList.toggle('on', !!data.pagato);
+      const row = document.getElementById('rpiano-' + rid);
+      if (row) row.className = data.pagato ? 'pagata' : '';
+      btn.disabled = false;
+    });
+}
+
+// Auto-apri sezione se hash presente
+window.addEventListener('load', () => {
+  const hash = window.location.hash;
+  if (hash) {
+    const el = document.querySelector(hash);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const body = el.querySelector('.fin-body');
+      const chev = el.querySelector('.fin-chevron');
+      if (body) body.classList.add('open');
+      if (chev) chev.classList.add('open');
+    }
+  }
+});
+</script>
+{% endblock %}

@@ -3542,6 +3542,242 @@ def elimina_proiezione_uscita(uid):
     return redirect(url_for('proiezioni'))
 
 
+# ─────────────────────────────────────────
+# FINANZIAMENTI & PIANI DI RIENTRO
+# ─────────────────────────────────────────
+
+@app.route("/finanziamenti")
+@login_required
+def finanziamenti():
+    conn = get_connection()
+
+    # Finanziamenti con aggregati
+    fins = conn.execute("""
+        SELECT f.*,
+            COUNT(r.id) as n_rate,
+            COALESCE(SUM(r.quota_capitale), 0) as tot_capitale,
+            COALESCE(SUM(r.quota_interessi), 0) as tot_interessi,
+            COALESCE(SUM(CASE WHEN r.pagato=1 THEN r.quota_capitale ELSE 0 END), 0) as capitale_pagato,
+            COALESCE(SUM(CASE WHEN r.pagato=0 THEN r.quota_capitale ELSE 0 END), 0) as debito_residuo,
+            COALESCE(SUM(CASE WHEN r.pagato=1 THEN r.rata_totale ELSE 0 END), 0) as cassa_pagata,
+            COALESCE(SUM(CASE WHEN r.pagato=0 THEN r.rata_totale ELSE 0 END), 0) as cassa_residua
+        FROM finanziamenti f
+        LEFT JOIN rate_finanziamento r ON r.finanziamento_id = f.id
+        GROUP BY f.id ORDER BY f.data_inizio DESC
+    """).fetchall()
+
+    # Rate per ciascun finanziamento
+    rate_per_fin = {}
+    for f in fins:
+        rate_per_fin[f['id']] = conn.execute("""
+            SELECT * FROM rate_finanziamento
+            WHERE finanziamento_id=%s ORDER BY data_scadenza
+        """, (f['id'],)).fetchall()
+
+    # Piani di rientro con aggregati
+    piani = conn.execute("""
+        SELECT p.*,
+            COUNT(r.id) as n_rate,
+            COALESCE(SUM(r.importo), 0) as tot_importo,
+            COALESCE(SUM(CASE WHEN r.pagato=1 THEN r.importo ELSE 0 END), 0) as pagato_tot,
+            COALESCE(SUM(CASE WHEN r.pagato=0 THEN r.importo ELSE 0 END), 0) as residuo
+        FROM piani_rientro p
+        LEFT JOIN rate_piano_rientro r ON r.piano_rientro_id = p.id
+        GROUP BY p.id ORDER BY p.creato_il DESC
+    """).fetchall()
+
+    rate_per_piano = {}
+    for p in piani:
+        rate_per_piano[p['id']] = conn.execute("""
+            SELECT * FROM rate_piano_rientro
+            WHERE piano_rientro_id=%s ORDER BY data_scadenza
+        """, (p['id'],)).fetchall()
+
+    conn.close()
+    return render_template("finanziamenti.html",
+        fins=fins,
+        rate_per_fin=rate_per_fin,
+        piani=piani,
+        rate_per_piano=rate_per_piano,
+        today=datetime.date.today().isoformat(),
+    )
+
+
+@app.route("/finanziamenti/nuovo", methods=["POST"])
+@login_required
+def nuovo_finanziamento():
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO finanziamenti (nome, banca, importo_originale, data_inizio, data_fine, note)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (
+        request.form["nome"],
+        request.form.get("banca", ""),
+        float(request.form.get("importo_originale") or 0),
+        request.form.get("data_inizio") or None,
+        request.form.get("data_fine") or None,
+        request.form.get("note", ""),
+    ))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("finanziamenti"))
+
+
+@app.route("/finanziamenti/<int:fid>/elimina", methods=["POST"])
+@login_required
+def elimina_finanziamento(fid):
+    conn = get_connection()
+    conn.execute("DELETE FROM finanziamenti WHERE id=%s", (fid,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("finanziamenti"))
+
+
+@app.route("/finanziamenti/<int:fid>/rate/nuova", methods=["POST"])
+@login_required
+def nuova_rata_finanziamento(fid):
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO rate_finanziamento (finanziamento_id, data_scadenza, rata_totale, quota_capitale, quota_interessi)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
+        fid,
+        request.form["data_scadenza"],
+        float(request.form.get("rata_totale") or 0),
+        float(request.form.get("quota_capitale") or 0),
+        float(request.form.get("quota_interessi") or 0),
+    ))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("finanziamenti") + f"#fin-{fid}")
+
+
+@app.route("/finanziamenti/rate/<int:rid>/modifica", methods=["POST"])
+@login_required
+def modifica_rata_finanziamento(rid):
+    conn = get_connection()
+    conn.execute("""
+        UPDATE rate_finanziamento
+        SET data_scadenza=%s, rata_totale=%s, quota_capitale=%s, quota_interessi=%s
+        WHERE id=%s
+    """, (
+        request.form["data_scadenza"],
+        float(request.form.get("rata_totale") or 0),
+        float(request.form.get("quota_capitale") or 0),
+        float(request.form.get("quota_interessi") or 0),
+        rid,
+    ))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("finanziamenti"))
+
+
+@app.route("/finanziamenti/rate/<int:rid>/elimina", methods=["POST"])
+@login_required
+def elimina_rata_finanziamento(rid):
+    conn = get_connection()
+    r = conn.execute("SELECT finanziamento_id FROM rate_finanziamento WHERE id=%s", (rid,)).fetchone()
+    conn.execute("DELETE FROM rate_finanziamento WHERE id=%s", (rid,))
+    conn.commit()
+    conn.close()
+    fid = r['finanziamento_id'] if r else ''
+    return redirect(url_for("finanziamenti") + f"#fin-{fid}")
+
+
+@app.route("/finanziamenti/rate/<int:rid>/toggle", methods=["POST"])
+@login_required
+def toggle_rata_finanziamento(rid):
+    conn = get_connection()
+    r = conn.execute("SELECT pagato FROM rate_finanziamento WHERE id=%s", (rid,)).fetchone()
+    if r:
+        nuovo = 0 if (r['pagato'] or 0) else 1
+        data = datetime.date.today().isoformat() if nuovo else None
+        conn.execute("UPDATE rate_finanziamento SET pagato=%s, data_pagamento=%s WHERE id=%s", (nuovo, data, rid))
+        conn.commit()
+        result = {"pagato": nuovo, "data_pagamento": data}
+    else:
+        result = {"error": "not found"}
+    conn.close()
+    return jsonify(result)
+
+
+# ── Piani di rientro fiscali ──
+
+@app.route("/piani-rientro/nuovo", methods=["POST"])
+@login_required
+def nuovo_piano_rientro():
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO piani_rientro (nome, tipo, ente, anno_riferimento, note)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
+        request.form["nome"],
+        request.form.get("tipo", "contributi"),
+        request.form.get("ente", ""),
+        int(request.form["anno_riferimento"]) if request.form.get("anno_riferimento") else None,
+        request.form.get("note", ""),
+    ))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("finanziamenti") + "#piani")
+
+
+@app.route("/piani-rientro/<int:pid>/elimina", methods=["POST"])
+@login_required
+def elimina_piano_rientro(pid):
+    conn = get_connection()
+    conn.execute("DELETE FROM piani_rientro WHERE id=%s", (pid,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("finanziamenti") + "#piani")
+
+
+@app.route("/piani-rientro/<int:pid>/rate/nuova", methods=["POST"])
+@login_required
+def nuova_rata_piano_rientro(pid):
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO rate_piano_rientro (piano_rientro_id, data_scadenza, importo)
+        VALUES (%s, %s, %s)
+    """, (
+        pid,
+        request.form["data_scadenza"],
+        float(request.form.get("importo") or 0),
+    ))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("finanziamenti") + f"#piano-{pid}")
+
+
+@app.route("/piani-rientro/rate/<int:rid>/elimina", methods=["POST"])
+@login_required
+def elimina_rata_piano_rientro(rid):
+    conn = get_connection()
+    r = conn.execute("SELECT piano_rientro_id FROM rate_piano_rientro WHERE id=%s", (rid,)).fetchone()
+    conn.execute("DELETE FROM rate_piano_rientro WHERE id=%s", (rid,))
+    conn.commit()
+    conn.close()
+    pid = r['piano_rientro_id'] if r else ''
+    return redirect(url_for("finanziamenti") + f"#piano-{pid}")
+
+
+@app.route("/piani-rientro/rate/<int:rid>/toggle", methods=["POST"])
+@login_required
+def toggle_rata_piano_rientro(rid):
+    conn = get_connection()
+    r = conn.execute("SELECT pagato FROM rate_piano_rientro WHERE id=%s", (rid,)).fetchone()
+    if r:
+        nuovo = 0 if (r['pagato'] or 0) else 1
+        data = datetime.date.today().isoformat() if nuovo else None
+        conn.execute("UPDATE rate_piano_rientro SET pagato=%s, data_pagamento=%s WHERE id=%s", (nuovo, data, rid))
+        conn.commit()
+        result = {"pagato": nuovo, "data_pagamento": data}
+    else:
+        result = {"error": "not found"}
+    conn.close()
+    return jsonify(result)
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, port=5050)

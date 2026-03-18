@@ -384,6 +384,55 @@ def _migrate(conn):
     if 'ricorrenza' not in existing:
         c.execute("ALTER TABLE proiezioni_uscite ADD COLUMN ricorrenza TEXT NOT NULL DEFAULT 'mensile'")
 
+    # finanziamenti bancari
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS finanziamenti (
+            id SERIAL PRIMARY KEY,
+            nome TEXT NOT NULL,
+            banca TEXT,
+            importo_originale REAL NOT NULL DEFAULT 0,
+            data_inizio TEXT,
+            data_fine TEXT,
+            note TEXT,
+            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS rate_finanziamento (
+            id SERIAL PRIMARY KEY,
+            finanziamento_id INTEGER NOT NULL REFERENCES finanziamenti(id) ON DELETE CASCADE,
+            data_scadenza TEXT NOT NULL,
+            rata_totale REAL NOT NULL DEFAULT 0,
+            quota_capitale REAL NOT NULL DEFAULT 0,
+            quota_interessi REAL NOT NULL DEFAULT 0,
+            pagato INTEGER DEFAULT 0,
+            data_pagamento TEXT
+        )
+    """)
+
+    # piani di rientro fiscali
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS piani_rientro (
+            id SERIAL PRIMARY KEY,
+            nome TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'contributi',
+            ente TEXT,
+            anno_riferimento INTEGER,
+            note TEXT,
+            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS rate_piano_rientro (
+            id SERIAL PRIMARY KEY,
+            piano_rientro_id INTEGER NOT NULL REFERENCES piani_rientro(id) ON DELETE CASCADE,
+            data_scadenza TEXT NOT NULL,
+            importo REAL NOT NULL DEFAULT 0,
+            pagato INTEGER DEFAULT 0,
+            data_pagamento TEXT
+        )
+    """)
+
     # Aggiungi pattern aggiuntivi se mancanti
     preset_aggiuntivi = [
         ('comm.bon', 'Commissioni bonifici', 'banca', 1),

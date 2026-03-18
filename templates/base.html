@@ -92,6 +92,15 @@
           </a>
         </li>
 
+        <li>
+          <a href="{{ url_for('finanziamenti') }}"
+             class="sidebar-item {% if request.endpoint in ['finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
+             data-label="Finanziamenti">
+            <i data-lucide="landmark" class="sidebar-icon"></i>
+            <span class="sidebar-label">Finanziamenti</span>
+          </a>
+        </li>
+
 
         <li>
           <a href="{{ url_for('cfo') }}"
