@@ -3464,8 +3464,30 @@ def proiezioni():
             uscite_per_mese[m] += importo
             m += skip
 
+    # Rate finanziamenti (mutui) per mese — tutto l'anno incluse già pagate
+    rate_fin_rows = conn.execute("""
+        SELECT CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
+               SUM(rata_totale) as totale
+        FROM rate_finanziamento
+        WHERE LEFT(data_scadenza, 4) = %s
+        GROUP BY mese
+    """, (str(anno),)).fetchall()
+    for r in rate_fin_rows:
+        uscite_per_mese[r['mese']] += float(r['totale'])
+
+    # Rate piani di rientro fiscali per mese — tutto l'anno incluse già pagate
+    rate_pr_rows = conn.execute("""
+        SELECT CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
+               SUM(importo) as totale
+        FROM rate_piano_rientro
+        WHERE LEFT(data_scadenza, 4) = %s
+        GROUP BY mese
+    """, (str(anno),)).fetchall()
+    for r in rate_pr_rows:
+        uscite_per_mese[r['mese']] += float(r['totale'])
+
     oggi = datetime.date.today()
-    # Costi totali = uscite proiettate + quota fornitore da ricavi
+    # Costi totali = uscite proiettate + quota fornitore da ricavi + rate finanziamenti/piani rientro
     costi_totali = [round(uscite_per_mese[m] + fornitori_per_mese[m], 2) for m in range(13)]
 
     chart_labels = json.dumps([MESI_IT[m] for m in range(1, 13)])
