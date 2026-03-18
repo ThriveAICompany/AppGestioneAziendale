@@ -398,8 +398,12 @@ input[type=range].st-slider::-moz-range-thumb {
 </section>
 
 <!-- ── Dati ── -->
-{% set ebitda_anno = namespace(val=0) %}
-{% for m in pl_mesi %}{% set ebitda_anno.val = ebitda_anno.val + m.ebitda %}{% endfor %}
+{% set ebitda_anno = namespace(val=0, ricavi=0) %}
+{% for m in pl_mesi %}
+  {% set ebitda_anno.val = ebitda_anno.val + m.ebitda %}
+  {% set ebitda_anno.ricavi = ebitda_anno.ricavi + m.ricavi_netti %}
+{% endfor %}
+{% set ebitda_pct = (ebitda_anno.val / ebitda_anno.ricavi * 100) if ebitda_anno.ricavi > 0 else none %}
 <section class="section" style="margin-bottom:1.5rem">
   <h2>📊 Dati</h2>
   <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
@@ -420,10 +424,10 @@ input[type=range].st-slider::-moz-range-thumb {
           <span class="trend-sub">dati contabili assenti</span>
         {% elif ebitda_anno.val >= 0 %}
           <span class="trend-badge trend-up"><i data-lucide="trending-up"></i> Positivo</span>
-          <span class="trend-sub">anno {{ anno_cfo }}</span>
+          <span class="trend-sub">{% if ebitda_pct is not none %}{{ "%.1f"|format(ebitda_pct) }}% sui ricavi{% else %}anno {{ anno_cfo }}{% endif %}</span>
         {% else %}
           <span class="trend-badge trend-down"><i data-lucide="trending-down"></i> Negativo</span>
-          <span class="trend-sub">anno {{ anno_cfo }}</span>
+          <span class="trend-sub">{% if ebitda_pct is not none %}{{ "%.1f"|format(ebitda_pct) }}% sui ricavi{% else %}anno {{ anno_cfo }}{% endif %}</span>
         {% endif %}
       </div>
     </div>
