@@ -2967,6 +2967,50 @@ def _build_cfo_data(conn, anno_ref=None):
     else:
         ltv_stimato = round(mrr_per_cliente * 24.0, 0)
 
+    # --- Prossime uscite obbligatorie (finanziamenti + piani di rientro) ---
+    oggi_str = today.isoformat()
+    rate_fin_upco = c.execute("""
+        SELECT f.nome, 'mutuo' as tipo, rf.data_scadenza,
+               rf.rata_totale as importo, rf.quota_interessi
+        FROM rate_finanziamento rf
+        JOIN finanziamenti f ON rf.finanziamento_id = f.id
+        WHERE rf.pagato = 0 AND rf.data_scadenza >= %s
+        ORDER BY rf.data_scadenza
+    """, (oggi_str,)).fetchall()
+
+    rate_pr_upco = c.execute("""
+        SELECT pr.nome, pr.tipo, rpr.data_scadenza,
+               rpr.importo, rpr.quota_interessi
+        FROM rate_piano_rientro rpr
+        JOIN piani_rientro pr ON rpr.piano_rientro_id = pr.id
+        WHERE rpr.pagato = 0 AND rpr.data_scadenza >= %s
+        ORDER BY rpr.data_scadenza
+    """, (oggi_str,)).fetchall()
+
+    prossime_uscite = []
+    for r in list(rate_fin_upco) + list(rate_pr_upco):
+        try:
+            data_d = datetime.date.fromisoformat(r['data_scadenza'])
+        except Exception:
+            continue
+        giorni = (data_d - today).days
+        prossime_uscite.append({
+            'nome': r['nome'],
+            'tipo': r['tipo'],
+            'data': r['data_scadenza'],
+            'importo': float(r['importo']),
+            'quota_interessi': float(r['quota_interessi']),
+            'giorni': giorni,
+        })
+    prossime_uscite.sort(key=lambda x: x['data'])
+
+    uscite_30  = [u for u in prossime_uscite if u['giorni'] <= 30]
+    uscite_60  = [u for u in prossime_uscite if 30 < u['giorni'] <= 60]
+    uscite_90  = [u for u in prossime_uscite if 60 < u['giorni'] <= 90]
+    tot_uscite_30 = sum(u['importo'] for u in uscite_30)
+    tot_uscite_60 = sum(u['importo'] for u in uscite_60)
+    tot_uscite_90 = sum(u['importo'] for u in uscite_90)
+
     return {
         'saldo_attuale': saldo_attuale,
         'mrr': mrr,
@@ -3023,6 +3067,14 @@ def _build_cfo_data(conn, anno_ref=None):
         'incassato_anno_val': incassato_anno_val,
         'ltv_stimato': ltv_stimato,
         'mrr_per_cliente': mrr_per_cliente,
+        # Prossime uscite obbligatorie
+        'prossime_uscite': prossime_uscite,
+        'uscite_30': uscite_30,
+        'uscite_60': uscite_60,
+        'uscite_90': uscite_90,
+        'tot_uscite_30': tot_uscite_30,
+        'tot_uscite_60': tot_uscite_60,
+        'tot_uscite_90': tot_uscite_90,
         'today': today.isoformat(),
         # Weekly KPI
         'contratti_chiusi_settimana': c.execute("""

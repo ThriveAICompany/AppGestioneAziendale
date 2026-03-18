@@ -436,6 +436,119 @@ input[type=range].st-slider::-moz-range-thumb {
 </section>
 
 
+<!-- ── Prossime Uscite Obbligatorie ── -->
+<section class="section" style="margin-bottom:1.5rem">
+  <h2>📅 Prossime Uscite Obbligatorie</h2>
+  <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem">
+    Rate mutui e piani di rientro fiscali non ancora pagate — uscite certe dalla cassa.
+  </p>
+
+  <!-- Bucket summary -->
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.2rem">
+    <div class="kpi-card {% if tot_uscite_30 > 0 %}{% endif %}">
+      <div class="kpi-label">
+        Prossimi 30 giorni
+        <div class="kpi-icon {% if tot_uscite_30 > 0 %}kpi-icon-red{% endif %}"><i data-lucide="calendar-clock"></i></div>
+      </div>
+      <div class="kpi-value {% if tot_uscite_30 > 0 %}negativo{% endif %}">
+        {% if tot_uscite_30 > 0 %}€ {{ tot_uscite_30|format_eur }}{% else %}<span style="color:var(--text-muted)">—</span>{% endif %}
+      </div>
+      <div class="kpi-trend">
+        <span class="trend-sub">{{ uscite_30|length }} rata/e in scadenza</span>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Giorni 31–60
+        <div class="kpi-icon"><i data-lucide="calendar"></i></div>
+      </div>
+      <div class="kpi-value" style="color:var(--orange)">
+        {% if tot_uscite_60 > 0 %}€ {{ tot_uscite_60|format_eur }}{% else %}<span style="color:var(--text-muted)">—</span>{% endif %}
+      </div>
+      <div class="kpi-trend">
+        <span class="trend-sub">{{ uscite_60|length }} rata/e in scadenza</span>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">
+        Giorni 61–90
+        <div class="kpi-icon"><i data-lucide="calendar-range"></i></div>
+      </div>
+      <div class="kpi-value" style="color:var(--text-muted)">
+        {% if tot_uscite_90 > 0 %}€ {{ tot_uscite_90|format_eur }}{% else %}<span style="color:var(--text-muted)">—</span>{% endif %}
+      </div>
+      <div class="kpi-trend">
+        <span class="trend-sub">{{ uscite_90|length }} rata/e in scadenza</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabella dettaglio -->
+  {% if prossime_uscite %}
+  <div class="table-wrap">
+    <table class="table cf-table">
+      <thead>
+        <tr>
+          <th>Scadenza</th>
+          <th>Obbligazione</th>
+          <th>Tipo</th>
+          <th style="text-align:right">Uscita cassa</th>
+          <th style="text-align:right">di cui interessi (P&L)</th>
+          <th style="text-align:right">Solo capitale</th>
+          <th style="text-align:center">Mancano</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in prossime_uscite %}
+        <tr {% if u.giorni <= 30 %}style="background:#fff5f5"{% elif u.giorni <= 60 %}style="background:#fffbeb"{% endif %}>
+          <td><strong>{{ u.data }}</strong></td>
+          <td>{{ u.nome }}</td>
+          <td>
+            {% if u.tipo == 'mutuo' %}
+              <span style="background:#ede9fe;color:#7c3aed;font-size:.72rem;font-weight:700;padding:.15rem .45rem;border-radius:999px">Mutuo</span>
+            {% elif u.tipo == 'iva' %}
+              <span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:.15rem .45rem;border-radius:999px">IVA</span>
+            {% elif u.tipo == 'contributi' %}
+              <span style="background:#dbeafe;color:#1d4ed8;font-size:.72rem;font-weight:700;padding:.15rem .45rem;border-radius:999px">Contributi</span>
+            {% else %}
+              <span style="background:#f1f5f9;color:#64748b;font-size:.72rem;font-weight:700;padding:.15rem .45rem;border-radius:999px">{{ u.tipo|capitalize }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right" class="cf-neg">€ {{ u.importo|format_eur }}</td>
+          <td style="text-align:right;color:var(--text-muted)">
+            {% if u.quota_interessi > 0 %}€ {{ u.quota_interessi|format_eur }}{% else %}—{% endif %}
+          </td>
+          <td style="text-align:right;color:var(--text-muted)">
+            € {{ (u.importo - u.quota_interessi)|format_eur }}
+          </td>
+          <td style="text-align:center">
+            {% if u.giorni <= 7 %}
+              <span style="background:#fee2e2;color:#b91c1c;font-size:.72rem;font-weight:700;padding:.15rem .45rem;border-radius:999px">{{ u.giorni }}gg ⚠️</span>
+            {% elif u.giorni <= 30 %}
+              <span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:700;padding:.15rem .45rem;border-radius:999px">{{ u.giorni }}gg</span>
+            {% else %}
+              <span style="color:var(--text-muted);font-size:.85rem">{{ u.giorni }}gg</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:700;background:var(--bg)">
+          <td colspan="3">Totale prossimi 90 giorni</td>
+          <td style="text-align:right" class="cf-neg">€ {{ (tot_uscite_30 + tot_uscite_60 + tot_uscite_90)|format_eur }}</td>
+          <td colspan="3"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p style="color:var(--text-muted);font-size:.9rem">Nessuna uscita obbligatoria nei prossimi 90 giorni.</p>
+  {% endif %}
+</section>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 
