@@ -191,9 +191,41 @@
 
     <tr class="row-sep"><td colspan="{{ mesi_pl|length + 2 }}"></td></tr>
 
-    <!-- UTILE / PERDITA -->
+    <!-- UTILE / PERDITA SENZA RETTIFICHE -->
+    {% set tot_risultato_nr = tot_anno.ricavi_saldo - tot_anno.costi_non_rett %}
+    <tr class="row-risultato" style="opacity:0.75">
+      <td class="lbl" style="font-style:italic">= Utile / Perdita (senza rettifiche)</td>
+      {% for r in mesi_pl %}
+      {% set ris_nr = r.ricavi_saldo - r.costi_non_rett %}
+      <td class="{{ 'positivo' if ris_nr >= 0 else 'negativo' }}" style="font-style:italic">
+        {% if r.ha_dati or r.ha_ricavi %}€ {{ ris_nr|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+      </td>
+      {% endfor %}
+      <td class="col-tot {{ 'positivo' if tot_risultato_nr >= 0 else 'negativo' }}" style="font-style:italic">€ {{ tot_risultato_nr|format_eur }}</td>
+    </tr>
+
+    <!-- RETTIFICHE -->
+    {% set tot_rett = tot_anno.ricavi_rettifiche - tot_anno.costi_rettifiche %}
+    <tr class="row-sub" style="font-size:0.85rem;opacity:0.7">
+      <td class="lbl" style="padding-left:1.2rem">Rettifiche</td>
+      {% for r in mesi_pl %}
+      {% set rett_m = r.ricavi_rettifiche - r.costi_rettifiche %}
+      <td class="{{ 'positivo' if rett_m >= 0 else 'negativo' }}">
+        {% if r.ha_dati or r.ha_ricavi %}
+          {% if rett_m != 0 %}{% if rett_m > 0 %}+{% endif %}€ {{ rett_m|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
+        {% else %}<span class="zero">—</span>{% endif %}
+      </td>
+      {% endfor %}
+      <td class="col-tot {{ 'positivo' if tot_rett >= 0 else 'negativo' }}">
+        {% if tot_rett != 0 %}{% if tot_rett > 0 %}+{% endif %}€ {{ tot_rett|format_eur }}{% else %}—{% endif %}
+      </td>
+    </tr>
+
+    <tr class="row-sep"><td colspan="{{ mesi_pl|length + 2 }}"></td></tr>
+
+    <!-- UTILE / PERDITA TOTALE -->
     <tr class="row-risultato">
-      <td class="lbl">= Utile / Perdita</td>
+      <td class="lbl">= Utile / Perdita totale</td>
       {% for r in mesi_pl %}
       <td class="{{ 'positivo' if r.risultato >= 0 else 'negativo' }}">
         {% if r.ha_dati or r.ha_ricavi %}€ {{ r.risultato|format_eur }}{% else %}<span class="zero">—</span>{% endif %}
