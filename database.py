@@ -771,4 +771,42 @@ def _migrate(conn):
                 VALUES (%s, %s, %s, %s, %s)
             """, (pid, data, importo, interessi, pagato))
 
+    # Seed: Piano rientro IVA Aprile/Maggio 2024
+    c.execute("SELECT id FROM piani_rientro WHERE nome='IVA Aprile/Maggio 2024'")
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO piani_rientro (nome, tipo, ente, anno_riferimento, note)
+            VALUES ('IVA Aprile/Maggio 2024', 'iva',
+                    'Agenzia delle Entrate', 2024,
+                    'Rateizzazione IVA apr/mag 2024 - rate trimestrali - rate 5-20 da mar 2026 a dic 2029')
+            RETURNING id
+        """)
+        pid = c.fetchone()[0]
+        # (data_scadenza, importo_cassa, quota_interessi, pagato)
+        # Rata 5 scade 31/3/2026 → non ancora passata → pagato=0
+        rate_iva_apr = [
+            ('2026-03-31', 938.93, 34.35, 0),
+            ('2026-06-30', 946.82, 42.24, 0),
+            ('2026-09-30', 954.80, 50.22, 0),
+            ('2026-12-31', 962.78, 58.20, 0),
+            ('2027-03-31', 970.59, 66.01, 0),
+            ('2027-06-30', 978.48, 73.90, 0),
+            ('2027-09-30', 986.46, 81.88, 0),
+            ('2027-12-31', 994.44, 89.86, 0),
+            ('2028-03-31', 1002.34, 97.76, 0),
+            ('2028-06-30', 1010.23, 105.65, 0),
+            ('2028-10-02', 1018.21, 113.63, 0),
+            ('2029-01-02', 1026.19, 121.61, 0),
+            ('2029-04-03', 1034.00, 129.42, 0),
+            ('2029-07-02', 1041.89, 137.31, 0),
+            ('2029-10-01', 1049.87, 145.29, 0),
+            ('2029-12-31', 1057.85, 153.27, 0),
+        ]
+        for data, importo, interessi, pagato in rate_iva_apr:
+            c.execute("""
+                INSERT INTO rate_piano_rientro
+                    (piano_rientro_id, data_scadenza, importo, quota_interessi, pagato)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (pid, data, importo, interessi, pagato))
+
     conn.commit()
