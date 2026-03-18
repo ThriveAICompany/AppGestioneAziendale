@@ -809,4 +809,37 @@ def _migrate(conn):
                 VALUES (%s, %s, %s, %s, %s)
             """, (pid, data, importo, interessi, pagato))
 
+    # Seed: Piano rientro Contributi Marzo/Aprile 2025
+    c.execute("SELECT id FROM piani_rientro WHERE nome='Contributi Marzo/Aprile 2025'")
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO piani_rientro (nome, tipo, ente, anno_riferimento, note)
+            VALUES ('Contributi Marzo/Aprile 2025', 'contributi',
+                    'INPS / Agenzia delle Entrate', 2025,
+                    'Rateizzazione contributi mar/apr 2025 - rate mensili il 6 del mese - rate 8-18 da gen 2026 a nov 2026')
+            RETURNING id
+        """)
+        pid = c.fetchone()[0]
+        # (data_scadenza, importo_cassa, quota_interessi, pagato)
+        # Rate 8-10 (gen/feb/mar 2026) già passate → pagato=1
+        rate_contrib = [
+            ('2026-01-06', 386.00, 27.51, 1),
+            ('2026-02-06', 386.00, 25.09, 1),
+            ('2026-03-06', 386.00, 22.66, 1),
+            ('2026-04-06', 386.00, 20.21, 0),
+            ('2026-05-06', 386.00, 17.74, 0),
+            ('2026-06-06', 386.00, 15.26, 0),
+            ('2026-07-06', 386.00, 12.76, 0),
+            ('2026-08-06', 386.00, 10.24, 0),
+            ('2026-09-06', 386.00,  7.71, 0),
+            ('2026-10-06', 386.00,  5.15, 0),
+            ('2026-11-06', 386.00,  2.59, 0),
+        ]
+        for data, importo, interessi, pagato in rate_contrib:
+            c.execute("""
+                INSERT INTO rate_piano_rientro
+                    (piano_rientro_id, data_scadenza, importo, quota_interessi, pagato)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (pid, data, importo, interessi, pagato))
+
     conn.commit()
