@@ -397,6 +397,40 @@ input[type=range].st-slider::-moz-range-thumb {
   </div>
 </section>
 
+<!-- ── Dati ── -->
+{% set ebitda_anno = namespace(val=0) %}
+{% for m in pl_mesi %}{% set ebitda_anno.val = ebitda_anno.val + m.ebitda %}{% endfor %}
+<section class="section" style="margin-bottom:1.5rem">
+  <h2>📊 Dati</h2>
+  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+
+    <!-- EBITDA -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        EBITDA
+        <div class="kpi-icon {% if ebitda_anno.val < 0 %}kpi-icon-red{% endif %}">
+          <i data-lucide="bar-chart-2"></i>
+        </div>
+      </div>
+      <div class="kpi-value {% if pl_mesi %}{% if ebitda_anno.val >= 0 %}positivo{% else %}negativo{% endif %}{% endif %}">
+        {% if pl_mesi %}€ {{ ebitda_anno.val|format_eur }}{% else %}<span style="color:var(--text-muted)">—</span>{% endif %}
+      </div>
+      <div class="kpi-trend">
+        {% if not pl_mesi %}
+          <span class="trend-sub">dati contabili assenti</span>
+        {% elif ebitda_anno.val >= 0 %}
+          <span class="trend-badge trend-up"><i data-lucide="trending-up"></i> Positivo</span>
+          <span class="trend-sub">anno {{ anno_cfo }}</span>
+        {% else %}
+          <span class="trend-badge trend-down"><i data-lucide="trending-down"></i> Negativo</span>
+          <span class="trend-sub">anno {{ anno_cfo }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
