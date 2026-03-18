@@ -204,8 +204,8 @@ def _parse_csv_bancario(content_bytes):
             cred = parse_number(row[i_cred]) if i_cred >= 0 and i_cred < len(row) else None
             if cred and cred > 0:
                 m = {'data': data_iso, 'descrizione': descrizione, 'importo': cred, 'tipo': 'entrata'}
-            elif deb and deb < 0:
-                m = {'data': data_iso, 'descrizione': descrizione, 'importo': abs(deb), 'tipo': 'uscita'}
+            elif deb and deb > 0:
+                m = {'data': data_iso, 'descrizione': descrizione, 'importo': deb, 'tipo': 'uscita'}
             else:
                 continue
             if i_cat >= 0 and i_cat < len(row) and row[i_cat].strip():
