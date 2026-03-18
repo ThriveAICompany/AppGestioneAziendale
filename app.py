@@ -18,6 +18,9 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
+# Inizializza il DB (crea tabelle e migrazioni) all'avvio, anche con gunicorn
+init_db()
+
 APP_USERNAME = os.environ.get('APP_USERNAME', '')
 APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
 
