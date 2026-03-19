@@ -1643,25 +1643,25 @@ def costi_fissi():
     conn = get_connection()
     c    = conn.cursor()
     today    = datetime.date.today()
-    oggi_str = today.isoformat()
+    anno_str = str(today.year)
 
     rate_fin_upco = c.execute("""
         SELECT f.nome, 'mutuo' as tipo, rf.data_scadenza,
                rf.rata_totale as importo, rf.quota_interessi
         FROM rate_finanziamento rf
         JOIN finanziamenti f ON rf.finanziamento_id = f.id
-        WHERE rf.pagato = 0 AND rf.data_scadenza >= %s
+        WHERE LEFT(rf.data_scadenza, 4) = %s
         ORDER BY rf.data_scadenza
-    """, (oggi_str,)).fetchall()
+    """, (anno_str,)).fetchall()
 
     rate_pr_upco = c.execute("""
         SELECT pr.nome, pr.tipo, rpr.data_scadenza,
                rpr.importo, rpr.quota_interessi
         FROM rate_piano_rientro rpr
         JOIN piani_rientro pr ON rpr.piano_rientro_id = pr.id
-        WHERE rpr.pagato = 0 AND rpr.data_scadenza >= %s
+        WHERE LEFT(rpr.data_scadenza, 4) = %s
         ORDER BY rpr.data_scadenza
-    """, (oggi_str,)).fetchall()
+    """, (anno_str,)).fetchall()
 
     prossime_uscite = []
     for r in list(rate_fin_upco) + list(rate_pr_upco):
