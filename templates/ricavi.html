@@ -3,15 +3,44 @@
 
 {% block content %}
 <style>
-  .ricavi-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+  /* ── Card mese (stile Debiti) ── */
+  .fin-card {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
+  }
+  .fin-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .9rem 1.2rem; cursor: pointer; gap: 1rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .fin-card-header:hover { background: var(--surface-hover, #f8fafa); }
+  .fin-card-title { font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .fin-card-meta { font-size: .78rem; color: var(--text-muted); margin-top: .1rem; }
+  .fin-kpi-row { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+  .fin-kpi { text-align: right; }
+  .fin-kpi-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .fin-kpi-val { font-size: .95rem; font-weight: 700; }
+  .fin-kpi-val.blu { color: #1565c0; }
+  .fin-kpi-val.verde { color: #2e7d32; }
+  .fin-kpi-val.arancio { color: #e65100; }
+  .fin-kpi-val.grigio { color: var(--text-muted); }
+  .fin-chevron { font-size: .75rem; color: var(--text-muted); transition: transform .2s; }
+  .fin-chevron.open { transform: rotate(90deg); }
+  .fin-body { display: none; padding: 1rem 1.2rem 1.2rem; }
+  .fin-body.open { display: block; }
+
+  /* ── Tabella righe dentro card ── */
+  .ricavi-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; margin-top: .5rem; }
   .ricavi-table th {
-    background: var(--surface); border: 1px solid var(--border);
-    padding: 0.55rem 0.75rem; text-align: left; font-weight: 600;
-    white-space: nowrap; position: sticky; top: 0; z-index: 2;
+    background: var(--surface); border-bottom: 2px solid var(--border);
+    padding: .4rem .6rem; text-align: left; font-weight: 600; font-size: .72rem;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+    white-space: nowrap;
   }
   .ricavi-table th.th-r { text-align: right; }
   .ricavi-table th.th-c { text-align: center; }
-  .ricavi-table td { border: 1px solid var(--border); padding: 0.45rem 0.75rem; vertical-align: middle; white-space: nowrap; }
+  .ricavi-table td { border-bottom: 1px solid var(--border); padding: .45rem .6rem; vertical-align: middle; white-space: nowrap; }
+  .ricavi-table tr:last-child td { border-bottom: none; }
   .ricavi-table td.td-importo { text-align: right; font-weight: 600; white-space: nowrap; }
   .ricavi-table td.td-azione  { text-align: center; width: 44px; }
 
@@ -21,22 +50,16 @@
   .row-scaduta   td { background: #fff5f5; }
   .row-attesa    td { background: #fffef5; }
 
-  /* Intestazione mese */
-  .mese-header { cursor: pointer; }
-  .mese-header td {
-    background: var(--primary, #2563eb); color: #fff;
-    font-weight: 700; font-size: 0.8rem; padding: 0.4rem 0.75rem; letter-spacing: 0.04em;
-    user-select: none;
-  }
-  .mese-chevron { display: inline-block; width: 14px; margin-right: 4px; }
+  /* Subtotale mese */
+  .mese-subtotale td { background: #f3f4f6; font-size: 0.8rem; color: #555; padding: .4rem .6rem; font-weight: 600; }
+
+  /* Badge pending */
   .mese-badge-pending {
-    display: inline-block; margin-left: 0.75rem;
+    display: inline-block;
     background: rgba(239,83,80,0.85); border-radius: 20px;
     padding: 1px 9px; font-size: 0.72rem; font-weight: 700;
     color: #fff; vertical-align: middle;
   }
-  /* Subtotale mese */
-  .mese-subtotale td { background: #f3f4f6; font-size: 0.8rem; color: #555; padding: 0.35rem 0.75rem; }
 
   /* Badge tipo pagamento */
   .badge-tipo {
@@ -79,7 +102,7 @@
   .tbtn:hover { opacity: 0.8; transform: scale(1.08); }
   .tbtn:disabled { opacity: 0.4; cursor: default; transform: none; }
 
-  /* Cards */
+  /* KPI Cards globali */
   .kpi-strip { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
   .kpi-card {
     background: var(--surface); border: 1px solid var(--border);
@@ -260,91 +283,118 @@
 </div>
 
 {% if mesi %}
-<table class="ricavi-table">
-  <thead>
-    <tr>
-      <th style="width:110px">Data</th>
-      <th>Cliente</th>
-      <th>Prodotto</th>
-      <th style="width:80px">Partner</th>
-      <th class="th-r" style="width:120px">Importo Netto</th>
-      <th class="th-c" style="width:44px">F</th>
-      <th class="th-c" style="width:44px">I</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for m in range(1, 13) %}
-    {% if m in mesi %}
-    {% set gruppo = mesi[m] %}
-    {% set n_completo = namespace(v=0) %}
-    {% for r in gruppo.rate %}{% if r.fatturato and r.pagato %}{% set n_completo.v = n_completo.v + 1 %}{% endif %}{% endfor %}
-    {% set n_pend = gruppo.rate|length - n_completo.v %}
-    <tr class="mese-header" id="mese-header-{{ m }}" data-collapsed="0" onclick="toggleMese({{ m }})">
-      <td colspan="7">
-        <span class="mese-chevron" id="mese-chevron-{{ m }}">▼</span>
-        {{ mesi_it[m] }} {{ anno }} — {{ gruppo.rate|length }} rata{% if gruppo.rate|length != 1 %}e{% endif %}
+
+{% for m in range(1, 13) %}
+{% if m in mesi %}
+{% set gruppo = mesi[m] %}
+{% set n_completo = namespace(v=0) %}
+{% for r in gruppo.rate %}{% if r.fatturato and r.pagato %}{% set n_completo.v = n_completo.v + 1 %}{% endif %}{% endfor %}
+{% set n_pend = gruppo.rate|length - n_completo.v %}
+
+<div class="fin-card" id="mese-card-{{ m }}">
+  <div class="fin-card-header" onclick="toggleMese({{ m }})">
+    <div>
+      <div class="fin-card-title">
+        {{ mesi_it[m] }} {{ anno }}
         <span id="mese-badge-{{ m }}" class="mese-badge-pending"{% if n_pend == 0 %} style="display:none"{% endif %}>{{ n_pend }} da completare</span>
-      </td>
-    </tr>
+      </div>
+      <div class="fin-card-meta">{{ gruppo.rate|length }} rata{% if gruppo.rate|length != 1 %}e{% endif %}</div>
+    </div>
+    <div class="fin-kpi-row">
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Fatturato Netto</div>
+        <div class="fin-kpi-val blu" id="mese-kpi-fatturato-{{ m }}">&euro; {{ gruppo.fatturato|format_eur }}</div>
+      </div>
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Incasso Netto</div>
+        <div class="fin-kpi-val verde" id="mese-kpi-incassato-{{ m }}">&euro; {{ gruppo.incassato|format_eur }}</div>
+      </div>
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">Compenso Partner</div>
+        <div class="fin-kpi-val arancio">&euro; {{ gruppo.tot_partner|format_eur }}</div>
+      </div>
+      <div class="fin-kpi">
+        <div class="fin-kpi-label">IVA (22%)</div>
+        <div class="fin-kpi-val grigio">&euro; {{ (gruppo.totale * 0.22)|format_eur }}</div>
+      </div>
+      <span class="fin-chevron" id="mese-chevron-{{ m }}">▶</span>
+    </div>
+  </div>
 
-    {% for r in gruppo.rate %}
-    {% if r.pagato %}{% set row_class = "row-incassata" %}
-    {% elif r.fatturato %}{% set row_class = "row-fatturata" %}
-    {% elif r.data_scadenza and r.data_scadenza < today_str %}{% set row_class = "row-scaduta" %}
-    {% else %}{% set row_class = "row-attesa" %}{% endif %}
-    <tr class="{{ row_class }}" id="row-{{ r.rata_id }}" data-mese="{{ m }}">
-      <td style="white-space:nowrap;font-size:0.82rem">
-        {% if r.data_scadenza %}{{ r.data_scadenza[8:10] }}/{{ r.data_scadenza[5:7] }}/{{ r.data_scadenza[0:4] }}{% else %}—{% endif %}
-      </td>
-      <td style="font-weight:600;white-space:nowrap">
-        {{ r.cliente_nome }}
-        <span class="row-actions">
-          <button class="btn-icon btn-icon-edit" title="Modifica" onclick="apriModifica({{ r.rata_id }})">✏</button>
-          <button class="btn-icon btn-icon-del" title="Elimina" onclick="eliminaRicavo({{ r.contratto_id }}, '{{ r.cliente_nome|e }}')">✕</button>
-        </span>
-      </td>
-      <td style="color:var(--text-muted)">
-        {{ r.prodotto or '—' }}
-        {% if r.tipo_pagamento == 'abbonamento' %}<span class="badge-tipo badge-abb">ABB</span>
-        {% elif r.tipo_pagamento == 'rate' %}<span class="badge-tipo badge-rate">RATE</span>
-        {% endif %}
-      </td>
-      <td style="white-space:nowrap">
-        {% if r.percentuale_partner > 0 %}
-          {% if r.partner_nome %}<span style="font-size:0.82rem;font-weight:600">{{ r.partner_nome }}</span> {% endif %}<span class="badge-partner">{{ r.percentuale_partner|int }}%</span>
-        {% else %}—{% endif %}
-      </td>
-      <td class="td-importo">&euro; {{ r.importo|format_eur }}</td>
-      <td class="td-azione">
-        <button class="tbtn tbtn-f {% if r.fatturato %}on{% endif %}"
-                onclick="toggleF({{ r.rata_id }}, this)"
-                title="{% if r.fatturato %}Fatturata il {{ r.data_fatturazione }}{% else %}Segna fatturata{% endif %}">F</button>
-      </td>
-      <td class="td-azione">
-        <button class="tbtn tbtn-i {% if r.pagato %}on{% endif %}"
-                onclick="toggleI({{ r.rata_id }}, this)"
-                title="{% if r.pagato %}Incassata il {{ r.data_pagamento }}{% else %}Segna incassata{% endif %}">I</button>
-      </td>
-    </tr>
-    {% endfor %}
+  <div class="fin-body" id="mese-body-{{ m }}">
+    <table class="ricavi-table">
+      <thead>
+        <tr>
+          <th style="width:110px">Data</th>
+          <th>Cliente</th>
+          <th>Prodotto</th>
+          <th style="width:80px">Partner</th>
+          <th class="th-r" style="width:120px">Importo Netto</th>
+          <th class="th-c" style="width:44px">F</th>
+          <th class="th-c" style="width:44px">I</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in gruppo.rate %}
+        {% if r.pagato %}{% set row_class = "row-incassata" %}
+        {% elif r.fatturato %}{% set row_class = "row-fatturata" %}
+        {% elif r.data_scadenza and r.data_scadenza < today_str %}{% set row_class = "row-scaduta" %}
+        {% else %}{% set row_class = "row-attesa" %}{% endif %}
+        <tr class="{{ row_class }}" id="row-{{ r.rata_id }}">
+          <td style="white-space:nowrap;font-size:0.82rem">
+            {% if r.data_scadenza %}{{ r.data_scadenza[8:10] }}/{{ r.data_scadenza[5:7] }}/{{ r.data_scadenza[0:4] }}{% else %}—{% endif %}
+          </td>
+          <td style="font-weight:600;white-space:nowrap">
+            {{ r.cliente_nome }}
+            <span class="row-actions">
+              <button class="btn-icon btn-icon-edit" title="Modifica" onclick="apriModifica({{ r.rata_id }})">✏</button>
+              <button class="btn-icon btn-icon-del" title="Elimina" onclick="eliminaRicavo({{ r.contratto_id }}, '{{ r.cliente_nome|e }}')">✕</button>
+            </span>
+          </td>
+          <td style="color:var(--text-muted)">
+            {{ r.prodotto or '—' }}
+            {% if r.tipo_pagamento == 'abbonamento' %}<span class="badge-tipo badge-abb">ABB</span>
+            {% elif r.tipo_pagamento == 'rate' %}<span class="badge-tipo badge-rate">RATE</span>
+            {% endif %}
+          </td>
+          <td style="white-space:nowrap">
+            {% if r.percentuale_partner > 0 %}
+              {% if r.partner_nome %}<span style="font-size:0.82rem;font-weight:600">{{ r.partner_nome }}</span> {% endif %}<span class="badge-partner">{{ r.percentuale_partner|int }}%</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="td-importo">&euro; {{ r.importo|format_eur }}</td>
+          <td class="td-azione">
+            <button class="tbtn tbtn-f {% if r.fatturato %}on{% endif %}"
+                    onclick="toggleF({{ r.rata_id }}, this)"
+                    title="{% if r.fatturato %}Fatturata il {{ r.data_fatturazione }}{% else %}Segna fatturata{% endif %}">F</button>
+          </td>
+          <td class="td-azione">
+            <button class="tbtn tbtn-i {% if r.pagato %}on{% endif %}"
+                    onclick="toggleI({{ r.rata_id }}, this)"
+                    title="{% if r.pagato %}Incassata il {{ r.data_pagamento }}{% else %}Segna incassata{% endif %}">I</button>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="mese-subtotale">
+          <td colspan="3" style="text-align:right">Totale {{ mesi_it[m] }}</td>
+          <td style="text-align:right;color:#e65100">
+            {% if gruppo.tot_partner > 0 %}&euro; {{ gruppo.tot_partner|format_eur }}{% endif %}
+          </td>
+          <td style="text-align:right">&euro; {{ gruppo.totale|format_eur }}</td>
+          <td style="text-align:right;font-size:0.78rem;color:#1565c0">
+            {% if gruppo.fatturato > 0 %}&euro; {{ gruppo.fatturato|format_eur }}{% endif %}
+          </td>
+          <td style="text-align:right;font-size:0.78rem;color:#2e7d32">
+            {% if gruppo.incassato > 0 %}&euro; {{ gruppo.incassato|format_eur }}{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 
-    <tr class="mese-subtotale" data-mese="{{ m }}">
-      <td colspan="3" style="text-align:right;font-weight:600">Totale {{ mesi_it[m] }}</td>
-      <td style="text-align:right;font-size:0.78rem;color:#e65100;white-space:nowrap;font-weight:600">
-        {% if gruppo.tot_partner > 0 %}&euro; {{ gruppo.tot_partner|format_eur }}{% endif %}
-      </td>
-      <td style="text-align:right;font-weight:700;white-space:nowrap">&euro; {{ gruppo.totale|format_eur }}</td>
-      <td style="text-align:right;font-size:0.78rem;color:#1565c0;white-space:nowrap">
-        {% if gruppo.fatturato > 0 %}&euro; {{ gruppo.fatturato|format_eur }}{% endif %}
-      </td>
-      <td style="text-align:right;font-size:0.78rem;color:#2e7d32;white-space:nowrap">
-        {% if gruppo.incassato > 0 %}&euro; {{ gruppo.incassato|format_eur }}{% endif %}
-      </td>
-    </tr>
-    {% endif %}
-    {% endfor %}
-  </tbody>
-</table>
+{% endif %}
+{% endfor %}
 
 {% else %}
 <div class="empty-msg">Nessun ricavo trovato per il {{ anno }}.</div>
@@ -420,19 +470,10 @@ const annoCorrente = new Date().getFullYear();
 const meseCorrente = new Date().getMonth() + 1;
 
 function toggleMese(m) {
-  const header = document.getElementById('mese-header-' + m);
-  const isCollapsed = header.dataset.collapsed === '1';
-  const chevron = document.getElementById('mese-chevron-' + m);
-  const rows = document.querySelectorAll('[data-mese="' + m + '"]');
-  if (isCollapsed) {
-    rows.forEach(r => r.style.display = '');
-    chevron.textContent = '▼';
-    header.dataset.collapsed = '0';
-  } else {
-    rows.forEach(r => r.style.display = 'none');
-    chevron.textContent = '▶';
-    header.dataset.collapsed = '1';
-  }
+  const body = document.getElementById('mese-body-' + m);
+  const chev = document.getElementById('mese-chevron-' + m);
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
 }
 
 function aggiornaBadgeMese(rid) {
@@ -449,6 +490,19 @@ function aggiornaBadgeMese(rid) {
   } else {
     badge.style.display = 'none';
   }
+}
+
+function aggiornaKpiMese(m) {
+  let fatturato = 0, incassato = 0;
+  for (const r of Object.values(rateData)) {
+    if (r.mese !== m) continue;
+    if (r.fatturato) fatturato += r.importo;
+    if (r.pagato)    incassato += r.importo;
+  }
+  const elF = document.getElementById('mese-kpi-fatturato-' + m);
+  const elI = document.getElementById('mese-kpi-incassato-' + m);
+  if (elF) elF.innerHTML = '&euro; ' + formatEur(fatturato);
+  if (elI) elI.innerHTML = '&euro; ' + formatEur(incassato);
 }
 
 function toggleFormNuovo() {
@@ -560,6 +614,7 @@ function toggleF(rid, btn) {
       rateData[rid].fatturato = data.fatturato ? 1 : 0;
       aggiornaRiga(rid);
       aggiornaCards();
+      aggiornaKpiMese(rateData[rid].mese);
       aggiornaBadgeMese(rid);
       btn.disabled = false;
     })
@@ -576,6 +631,7 @@ function toggleI(rid, btn) {
       rateData[rid].pagato = data.pagato ? 1 : 0;
       aggiornaRiga(rid);
       aggiornaCards();
+      aggiornaKpiMese(rateData[rid].mese);
       aggiornaBadgeMese(rid);
       btn.disabled = false;
     })
@@ -597,10 +653,15 @@ function aggiornaRiga(rid) {
 // Inizializza campo nuovo cliente
 toggleNuovoCliente();
 
-// Smart init: collapse past months
+// Smart init: apri mese corrente e futuri, collassa i passati
 mesiDisponibili.forEach(m => {
   const isPast = (annoVista < annoCorrente) || (annoVista === annoCorrente && m < meseCorrente);
-  if (isPast) toggleMese(m);
+  if (!isPast) {
+    const body = document.getElementById('mese-body-' + m);
+    const chev = document.getElementById('mese-chevron-' + m);
+    if (body) body.classList.add('open');
+    if (chev) chev.classList.add('open');
+  }
 });
 </script>
 {% endblock %}
