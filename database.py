@@ -297,6 +297,20 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS costi_variabili (
+            id SERIAL PRIMARY KEY,
+            anno INTEGER NOT NULL,
+            mese INTEGER NOT NULL,
+            data_scadenza TEXT NOT NULL,
+            uscita_cassa REAL NOT NULL DEFAULT 0,
+            iva REAL NOT NULL DEFAULT 0,
+            quota_capitale REAL NOT NULL DEFAULT 0,
+            pagato INTEGER NOT NULL DEFAULT 0,
+            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
     conn.commit()
     _migrate(conn)
     conn.close()

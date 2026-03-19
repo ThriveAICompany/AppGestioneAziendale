@@ -39,7 +39,7 @@
         </li>
 
         <li class="nav-group">
-          <div class="sidebar-item nav-parent {% if request.endpoint in ['costi_anno', 'costi_fissi', 'finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
+          <div class="sidebar-item nav-parent {% if request.endpoint in ['costi_anno', 'costi_fissi', 'costi_variabili', 'aggiungi_costo_variabile', 'toggle_pagato_costo_variabile', 'elimina_costo_variabile', 'finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
                data-label="Costi"
                onclick="toggleCostiMenu()">
             <i data-lucide="table-2" class="sidebar-icon"></i>
@@ -55,6 +55,14 @@
                  data-label="Fissi">
                 <span class="nav-subitem-dot"></span>
                 <span class="sidebar-label">Fissi</span>
+              </a>
+            </li>
+            <li>
+              <a href="{{ url_for('costi_variabili') }}"
+                 class="sidebar-item nav-subitem {% if request.endpoint == 'costi_variabili' %}active{% endif %}"
+                 data-label="Variabili">
+                <span class="nav-subitem-dot"></span>
+                <span class="sidebar-label">Variabili</span>
               </a>
             </li>
             <li>
@@ -174,7 +182,7 @@
     }
 
     // Auto-open submenu if child page is active or was left open
-    const costiChildActive = {{ 'true' if request.endpoint in ['costi_fissi','finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] else 'false' }};
+    const costiChildActive = {{ 'true' if request.endpoint in ['costi_fissi','costi_variabili','finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] else 'false' }};
     if ((costiChildActive || localStorage.getItem('costiMenuOpen') === 'true') && !sidebar.classList.contains('sidebar-collapsed')) {
       document.getElementById('costiSubmenu').classList.add('open');
       document.getElementById('costiChevron').classList.add('open');

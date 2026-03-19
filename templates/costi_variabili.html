@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block title %}Costi Variabili{% endblock %}
+
+{% block content %}
+<style>
+.var-kpi-anno-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.var-kpi-anno-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.2rem 1.4rem;
+}
+.var-kpi-anno-label {
+  font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem;
+}
+.var-kpi-anno-val {
+  font-size: 1.5rem; font-weight: 700; line-height: 1.1;
+}
+.var-kpi-anno-sub {
+  font-size: .75rem; color: var(--text-muted); margin-top: .25rem;
+}
+@media (max-width: 700px) {
+  .var-kpi-anno-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 400px) {
+  .var-kpi-anno-row { grid-template-columns: 1fr; }
+}
+
+.var-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
+}
+.var-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .9rem 1.2rem; cursor: pointer; gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.var-card-header:hover { background: var(--surface-hover, #f8fafa); }
+.var-card-title { font-weight: 700; font-size: .95rem; }
+.var-kpi-row {
+  display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
+}
+.var-kpi { text-align: right; }
+.var-kpi-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.var-kpi-val { font-size: .95rem; font-weight: 700; }
+.var-chevron { font-size: .75rem; color: var(--text-muted); transition: transform .2s; }
+.var-chevron.open { transform: rotate(90deg); }
+.var-body { display: none; padding: 1rem 1.2rem 1.2rem; }
+.var-body.open { display: block; }
+
+.var-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-bottom: 1rem; }
+.var-table th {
+  text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem;
+  border-bottom: 2px solid var(--border);
+}
+.var-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.var-table tr:last-child td { border-bottom: none; }
+.var-table tr.add-row td { border-bottom: none; }
+
+.btn-pagata {
+  width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border);
+  background: transparent; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; transition: all .15s; color: var(--text-muted);
+}
+.btn-pagata.pagata {
+  background: #0ea5e9; border-color: #0ea5e9; color: #fff;
+}
+.btn-pagata:hover { border-color: #0ea5e9; color: #0ea5e9; }
+.btn-pagata.pagata:hover { background: #0284c7; border-color: #0284c7; }
+
+.btn-elimina {
+  width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--border);
+  background: transparent; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; color: var(--text-muted); font-size: .8rem; transition: all .15s;
+}
+.btn-elimina:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+
+.btn-aggiungi {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .4rem .9rem; border-radius: 20px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: .82rem; font-weight: 500;
+  cursor: pointer; transition: all .15s;
+}
+.btn-aggiungi:hover { border-color: var(--accent, #0ea5e9); color: var(--accent, #0ea5e9); background: #f0f9ff; }
+
+.add-form-row input {
+  padding: .3rem .5rem; border: 1px solid var(--border); border-radius: 4px;
+  font-size: .83rem; width: 100%; background: var(--surface); color: var(--text);
+}
+.add-form-row input:focus { outline: none; border-color: var(--accent, #0ea5e9); }
+.btn-save-row {
+  padding: .3rem .7rem; border-radius: 4px; border: none;
+  background: #0ea5e9; color: #fff; font-size: .82rem; font-weight: 600;
+  cursor: pointer; transition: background .15s; white-space: nowrap;
+}
+.btn-save-row:hover { background: #0284c7; }
+.btn-cancel-row {
+  padding: .3rem .7rem; border-radius: 4px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); font-size: .82rem;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.btn-cancel-row:hover { border-color: #ef4444; color: #ef4444; }
+</style>
+
+<!-- Header -->
+<div class="page-header" style="margin-bottom:1.5rem">
+  <div>
+    <h1 class="page-title">Costi Variabili</h1>
+    <p class="text-muted" style="font-size:.88rem;margin-top:.2rem">
+      Costi variabili mensili — aggiungi, gestisci e traccia i pagamenti.
+    </p>
+  </div>
+</div>
+
+<!-- KPI Anno (4 card) -->
+<div class="var-kpi-anno-row">
+  <div class="var-kpi-anno-card">
+    <div class="var-kpi-anno-label">Totale {{ anno }}</div>
+    <div class="var-kpi-anno-val negativo">€ {{ kpi_totale|format_eur }}</div>
+    <div class="var-kpi-anno-sub">Uscita totale dalla cassa</div>
+  </div>
+  <div class="var-kpi-anno-card">
+    <div class="var-kpi-anno-label">Pagato {{ anno }}</div>
+    <div class="var-kpi-anno-val" style="color:#22c55e">€ {{ kpi_pagato|format_eur }}</div>
+    <div class="var-kpi-anno-sub">Già uscito dalla cassa</div>
+  </div>
+  <div class="var-kpi-anno-card">
+    <div class="var-kpi-anno-label">Residuo {{ anno }}</div>
+    <div class="var-kpi-anno-val" style="color:#f97316">€ {{ kpi_residuo|format_eur }}</div>
+    <div class="var-kpi-anno-sub">Ancora da pagare</div>
+  </div>
+  <div class="var-kpi-anno-card">
+    <div class="var-kpi-anno-label">IVA a credito {{ anno }}</div>
+    <div class="var-kpi-anno-val">€ {{ kpi_iva|format_eur }}</div>
+    <div class="var-kpi-anno-sub">IVA recuperabile</div>
+  </div>
+</div>
+
+<!-- Accordion mensile -->
+{% for mese in mesi_list %}
+<div class="var-card" id="card-{{ mese.chiave }}">
+  <div class="var-card-header" onclick="toggleVar('var-body-{{ mese.chiave }}', 'var-chev-{{ mese.chiave }}')">
+    <div class="var-card-title">{{ mese.label }}</div>
+    <div class="var-kpi-row">
+      <div class="var-kpi">
+        <div class="var-kpi-label">Totale</div>
+        <div class="var-kpi-val negativo" id="kpi-tot-{{ mese.chiave }}">€ {{ mese.tot|format_eur }}</div>
+      </div>
+      <div class="var-kpi">
+        <div class="var-kpi-label">Pagato</div>
+        <div class="var-kpi-val" style="color:#22c55e" id="kpi-pag-{{ mese.chiave }}">€ {{ mese.pagato|format_eur }}</div>
+      </div>
+      <div class="var-kpi">
+        <div class="var-kpi-label">Residuo</div>
+        <div class="var-kpi-val" style="color:#f97316" id="kpi-res-{{ mese.chiave }}">€ {{ mese.residuo|format_eur }}</div>
+      </div>
+      <div class="var-kpi">
+        <div class="var-kpi-label">IVA a credito</div>
+        <div class="var-kpi-val" id="kpi-iva-{{ mese.chiave }}">€ {{ mese.iva|format_eur }}</div>
+      </div>
+      <span class="var-chevron" id="var-chev-{{ mese.chiave }}">▶</span>
+    </div>
+  </div>
+
+  <div class="var-body" id="var-body-{{ mese.chiave }}">
+    <table class="var-table" id="table-{{ mese.chiave }}">
+      <thead>
+        <tr>
+          <th>Data scadenza</th>
+          <th style="text-align:right">Uscita cassa</th>
+          <th style="text-align:right">IVA</th>
+          <th style="text-align:right">Quota capitale</th>
+          <th style="text-align:center">Pagata</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody-{{ mese.chiave }}">
+        {% for v in mese.voci %}
+        <tr id="row-{{ v.id }}">
+          <td>{{ v.data_scadenza[8:10] }}/{{ v.data_scadenza[5:7] }}/{{ v.data_scadenza[0:4] }}</td>
+          <td style="text-align:right">€ {{ v.uscita_cassa|format_eur }}</td>
+          <td style="text-align:right;color:var(--text-muted)">{% if v.iva > 0 %}€ {{ v.iva|format_eur }}{% else %}—{% endif %}</td>
+          <td style="text-align:right;color:var(--text-muted)">{% if v.quota_capitale > 0 %}€ {{ v.quota_capitale|format_eur }}{% else %}—{% endif %}</td>
+          <td style="text-align:center">
+            <button class="btn-pagata {% if v.pagato %}pagata{% endif %}"
+                    onclick="togglePagata({{ v.id }}, '{{ mese.chiave }}', this)"
+                    title="{% if v.pagato %}Segna come non pagata{% else %}Segna come pagata{% endif %}">
+              ✓
+            </button>
+          </td>
+          <td style="text-align:center">
+            <button class="btn-elimina" onclick="eliminaVoce({{ v.id }}, '{{ mese.chiave }}')" title="Elimina">✕</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <button class="btn-aggiungi" onclick="mostraFormAggiungi('{{ mese.chiave }}', {{ mese.mese }}, {{ anno }})">
+      + Aggiungi costo
+    </button>
+  </div>
+</div>
+{% endfor %}
+
+<script>
+function toggleVar(bodyId, chevId) {
+  document.getElementById(bodyId).classList.toggle('open');
+  document.getElementById(chevId).classList.toggle('open');
+}
+
+function fmtEur(n) {
+  return n.toLocaleString('it-IT', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+}
+
+function mostraFormAggiungi(chiave, mese, anno) {
+  // Rimuovi form esistente se c'è
+  const existing = document.getElementById('add-form-' + chiave);
+  if (existing) { existing.remove(); return; }
+
+  const tbody = document.getElementById('tbody-' + chiave);
+  const tr = document.createElement('tr');
+  tr.id = 'add-form-' + chiave;
+  tr.className = 'add-row';
+  const defaultDate = anno + '-' + String(mese).padStart(2,'0') + '-01';
+  tr.innerHTML = `
+    <td><input type="date" id="af-data-${chiave}" value="${defaultDate}" /></td>
+    <td><input type="number" id="af-uscita-${chiave}" placeholder="0.00" step="0.01" min="0" /></td>
+    <td><input type="number" id="af-iva-${chiave}" placeholder="0.00" step="0.01" min="0" /></td>
+    <td><input type="number" id="af-capitale-${chiave}" placeholder="0.00" step="0.01" min="0" /></td>
+    <td style="text-align:center">
+      <button class="btn-save-row" onclick="salvaVoce('${chiave}', ${mese}, ${anno})">Salva</button>
+    </td>
+    <td style="text-align:center">
+      <button class="btn-cancel-row" onclick="document.getElementById('add-form-${chiave}').remove()">Annulla</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+  document.getElementById('af-data-' + chiave).focus();
+}
+
+async function salvaVoce(chiave, mese, anno) {
+  const dataVal = document.getElementById('af-data-' + chiave).value;
+  const uscita  = parseFloat(document.getElementById('af-uscita-' + chiave).value) || 0;
+  const iva     = parseFloat(document.getElementById('af-iva-' + chiave).value) || 0;
+  const cap     = parseFloat(document.getElementById('af-capitale-' + chiave).value) || 0;
+
+  if (!dataVal) { alert('Inserisci una data di scadenza.'); return; }
+  if (uscita <= 0) { alert('Inserisci un importo uscita cassa maggiore di zero.'); return; }
+
+  const res = await fetch('/costi-variabili/aggiungi', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({anno, mese, data_scadenza: dataVal, uscita_cassa: uscita, iva, quota_capitale: cap})
+  });
+  const data = await res.json();
+  if (data.error) { alert('Errore: ' + data.error); return; }
+
+  // Rimuovi form
+  document.getElementById('add-form-' + chiave).remove();
+
+  // Aggiungi riga nella tabella
+  const d = dataVal;
+  const dataFmt = d.substring(8,10) + '/' + d.substring(5,7) + '/' + d.substring(0,4);
+  const tbody = document.getElementById('tbody-' + chiave);
+  const tr = document.createElement('tr');
+  tr.id = 'row-' + data.id;
+  tr.innerHTML = `
+    <td>${dataFmt}</td>
+    <td style="text-align:right">€ ${fmtEur(uscita)}</td>
+    <td style="text-align:right;color:var(--text-muted)">${iva > 0 ? '€ ' + fmtEur(iva) : '—'}</td>
+    <td style="text-align:right;color:var(--text-muted)">${cap > 0 ? '€ ' + fmtEur(cap) : '—'}</td>
+    <td style="text-align:center">
+      <button class="btn-pagata" onclick="togglePagata(${data.id}, '${chiave}', this)" title="Segna come pagata">✓</button>
+    </td>
+    <td style="text-align:center">
+      <button class="btn-elimina" onclick="eliminaVoce(${data.id}, '${chiave}')" title="Elimina">✕</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+
+  // Aggiorna KPI del mese
+  aggiornaKpiMese(chiave, uscita, 0, iva);
+}
+
+async function togglePagata(id, chiave, btn) {
+  const res = await fetch('/costi-variabili/pagata/' + id, {method: 'POST'});
+  const data = await res.json();
+  if (data.error) { alert('Errore'); return; }
+
+  const eraPagata = !data.pagato; // se ora è pagato=1, era 0 prima, quindi eraPagata=false
+  btn.classList.toggle('pagata', !!data.pagato);
+  btn.title = data.pagato ? 'Segna come non pagata' : 'Segna come pagata';
+
+  // Recupera importo dalla riga
+  const row = document.getElementById('row-' + id);
+  const uscitaStr = row.cells[1].textContent.replace(/[€\s.]/g, '').replace(',', '.');
+  const uscita = parseFloat(uscitaStr) || 0;
+
+  // Se è diventata pagata: aggiungi al pagato; se è diventata non pagata: togli
+  const delta = data.pagato ? uscita : -uscita;
+  aggiornaKpiMesePagato(chiave, delta);
+}
+
+async function eliminaVoce(id, chiave) {
+  if (!confirm('Eliminare questo costo?')) return;
+
+  const row = document.getElementById('row-' + id);
+  const uscitaStr = row.cells[1].textContent.replace(/[€\s.]/g, '').replace(',', '.');
+  const uscita = parseFloat(uscitaStr) || 0;
+  const ivaCell = row.cells[2].textContent.trim();
+  const iva = ivaCell === '—' ? 0 : parseFloat(ivaCell.replace(/[€\s.]/g, '').replace(',', '.')) || 0;
+  const isPagata = row.querySelector('.btn-pagata').classList.contains('pagata');
+
+  const res = await fetch('/costi-variabili/elimina/' + id, {method: 'POST'});
+  const data = await res.json();
+  if (!data.ok) { alert('Errore eliminazione'); return; }
+
+  row.remove();
+  aggiornaKpiMese(chiave, -uscita, isPagata ? -uscita : 0, -iva);
+}
+
+function aggiornaKpiMese(chiave, deltaUscita, deltaPagato, deltaIva) {
+  function parseVal(id) {
+    const el = document.getElementById(id);
+    const s = el.textContent.replace(/[€\s.]/g, '').replace(',', '.');
+    return parseFloat(s) || 0;
+  }
+  function setVal(id, val, prefix) {
+    document.getElementById(id).textContent = (prefix || '€ ') + fmtEur(Math.max(0, val));
+  }
+
+  const tot = parseVal('kpi-tot-' + chiave) + deltaUscita;
+  const pag = parseVal('kpi-pag-' + chiave) + deltaPagato;
+  const iva = parseVal('kpi-iva-' + chiave) + deltaIva;
+  const res = tot - pag;
+
+  setVal('kpi-tot-' + chiave, tot, '€ ');
+  setVal('kpi-pag-' + chiave, pag, '€ ');
+  setVal('kpi-res-' + chiave, Math.max(0, res), '€ ');
+  setVal('kpi-iva-' + chiave, iva, '€ ');
+}
+
+function aggiornaKpiMesePagato(chiave, deltaPagato) {
+  aggiornaKpiMese(chiave, 0, deltaPagato, 0);
+}
+</script>
+{% endblock %}

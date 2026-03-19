@@ -1719,6 +1719,101 @@ def costi_fissi():
                            today=today.isoformat())
 
 
+@app.route("/costi-variabili")
+@login_required
+def costi_variabili():
+    conn = get_connection()
+    today = datetime.date.today()
+    anno = today.year
+    MESI_IT = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+               'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+
+    rows = conn.execute("""
+        SELECT id, anno, mese, data_scadenza, uscita_cassa, iva, quota_capitale, pagato
+        FROM costi_variabili
+        WHERE anno = %s
+        ORDER BY data_scadenza
+    """, (anno,)).fetchall()
+
+    mesi_list = []
+    for m in range(1, 13):
+        voci = [dict(r) for r in rows if r['mese'] == m]
+        tot = sum(v['uscita_cassa'] for v in voci)
+        pagato_tot = sum(v['uscita_cassa'] for v in voci if v['pagato'])
+        iva_tot = sum(v['iva'] for v in voci)
+        mesi_list.append({
+            'mese': m,
+            'label': f"{MESI_IT[m]} {anno}",
+            'chiave': f"{anno}-{m:02d}",
+            'voci': voci,
+            'tot': tot,
+            'pagato': pagato_tot,
+            'residuo': tot - pagato_tot,
+            'iva': iva_tot,
+        })
+
+    kpi_totale = sum(m['tot'] for m in mesi_list)
+    kpi_pagato = sum(m['pagato'] for m in mesi_list)
+    kpi_residuo = kpi_totale - kpi_pagato
+    kpi_iva = sum(m['iva'] for m in mesi_list)
+    conn.close()
+
+    return render_template("costi_variabili.html",
+                           mesi_list=mesi_list,
+                           kpi_totale=kpi_totale,
+                           kpi_pagato=kpi_pagato,
+                           kpi_residuo=kpi_residuo,
+                           kpi_iva=kpi_iva,
+                           anno=anno)
+
+
+@app.route("/costi-variabili/aggiungi", methods=["POST"])
+@login_required
+def aggiungi_costo_variabile():
+    data = request.get_json()
+    anno = int(data.get('anno', datetime.date.today().year))
+    mese = int(data.get('mese'))
+    data_scadenza = data.get('data_scadenza')
+    uscita_cassa = float(data.get('uscita_cassa', 0))
+    iva = float(data.get('iva', 0))
+    quota_capitale = float(data.get('quota_capitale', 0))
+
+    conn = get_connection()
+    row = conn.execute("""
+        INSERT INTO costi_variabili (anno, mese, data_scadenza, uscita_cassa, iva, quota_capitale, pagato)
+        VALUES (%s, %s, %s, %s, %s, %s, 0)
+        RETURNING id
+    """, (anno, mese, data_scadenza, uscita_cassa, iva, quota_capitale)).fetchone()
+    conn.commit()
+    conn.close()
+    return jsonify({'id': row['id']})
+
+
+@app.route("/costi-variabili/pagata/<int:id>", methods=["POST"])
+@login_required
+def toggle_pagato_costo_variabile(id):
+    conn = get_connection()
+    row = conn.execute("SELECT pagato FROM costi_variabili WHERE id = %s", (id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'not found'}), 404
+    nuovo = 0 if row['pagato'] else 1
+    conn.execute("UPDATE costi_variabili SET pagato = %s WHERE id = %s", (nuovo, id))
+    conn.commit()
+    conn.close()
+    return jsonify({'pagato': nuovo})
+
+
+@app.route("/costi-variabili/elimina/<int:id>", methods=["POST"])
+@login_required
+def elimina_costo_variabile(id):
+    conn = get_connection()
+    conn.execute("DELETE FROM costi_variabili WHERE id = %s", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
 @app.route("/costi-anno")
 @login_required
 def costi_anno():
