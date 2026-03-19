@@ -1233,9 +1233,11 @@ def import_csv_conferma():
 
     # Carico i record già presenti nel DB PRIMA del loop, così le righe
     # inserite durante questo stesso import non vengono mai considerate duplicate.
+    # Nota: Banca Sella usa lo stesso codice_banca per commissione + bonifico
+    # della stessa operazione, quindi la chiave di dedup è (codice_banca, importo).
     existing_codici = set(
-        r[0] for r in conn.execute(
-            "SELECT codice_banca FROM movimenti WHERE codice_banca IS NOT NULL"
+        (r[0], round(float(r[1]), 2)) for r in conn.execute(
+            "SELECT codice_banca, importo FROM movimenti WHERE codice_banca IS NOT NULL"
         ).fetchall()
     )
     existing_fallback = set(
@@ -1249,10 +1251,11 @@ def import_csv_conferma():
     for r in righe:
         codice_banca = r.get('codice_banca') or None
         if codice_banca:
-            if codice_banca in existing_codici or codice_banca in seen_in_batch:
+            key = (codice_banca, round(float(r['importo']), 2))
+            if key in existing_codici or key in seen_in_batch:
                 duplicati += 1
                 continue
-            seen_in_batch.add(codice_banca)
+            seen_in_batch.add(key)
         else:
             key = (r['data'], r['tipo'], round(float(r['importo']), 2), r['descrizione'])
             if key in existing_fallback:
