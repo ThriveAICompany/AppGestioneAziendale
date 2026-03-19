@@ -1640,8 +1640,8 @@ def toggle_pagamento_costo(rid):
 @app.route("/costi-fissi")
 @login_required
 def costi_fissi():
-    db  = get_db()
-    c   = db.cursor()
+    conn = get_connection()
+    c    = conn.cursor()
     today    = datetime.date.today()
     oggi_str = today.isoformat()
 
@@ -1703,6 +1703,7 @@ def costi_fissi():
         mesi_dict[chiave]['tot_capitale']  += u['importo'] - u['quota_interessi']
 
     uscite_per_mese = list(mesi_dict.values())
+    conn.close()
 
     return render_template("costi_fissi.html",
                            uscite_per_mese=uscite_per_mese,
