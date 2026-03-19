@@ -1707,7 +1707,7 @@ def costi_fissi():
 
     return render_template("costi_fissi.html",
                            uscite_per_mese=uscite_per_mese,
-                           today=oggi_str)
+                           today=today.isoformat())
 
 
 @app.route("/costi-anno")
