@@ -2,7 +2,108 @@
 {% block title %}Costi Fissi{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1 class="page-title">Costi Fissi</h1>
+<style>
+.fissi-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
+}
+.fissi-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .9rem 1.2rem; cursor: pointer; gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.fissi-card-header:hover { background: var(--surface-hover, #f8fafa); }
+.fissi-card-title { font-weight: 700; font-size: .95rem; }
+.fissi-kpi-row {
+  display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
+}
+.fissi-kpi { text-align: right; }
+.fissi-kpi-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.fissi-kpi-val { font-size: .95rem; font-weight: 700; }
+.fissi-chevron { font-size: .75rem; color: var(--text-muted); transition: transform .2s; }
+.fissi-chevron.open { transform: rotate(90deg); }
+.fissi-body { display: none; padding: 1rem 1.2rem 1.2rem; }
+.fissi-body.open { display: block; }
+
+.fissi-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .5rem; }
+.fissi-table th {
+  text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem;
+  border-bottom: 2px solid var(--border);
+}
+.fissi-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); }
+.fissi-table tr:last-child td { border-bottom: none; }
+</style>
+
+<div class="page-header" style="margin-bottom:1.5rem">
+  <div>
+    <h1 class="page-title">Prossime Uscite Obbligatorie</h1>
+    <p class="text-muted" style="font-size:.88rem;margin-top:.2rem">
+      Rate mutui e piani di rientro fiscali non ancora pagate — uscite certe dalla cassa.
+    </p>
+  </div>
 </div>
+
+{% if uscite_per_mese %}
+  {% for mese in uscite_per_mese %}
+  <div class="fissi-card">
+    <div class="fissi-card-header" onclick="toggleFissi('fissi-body-{{ loop.index }}', 'fissi-chev-{{ loop.index }}')">
+      <div class="fissi-card-title">{{ mese.label }}</div>
+      <div class="fissi-kpi-row">
+        <div class="fissi-kpi">
+          <div class="fissi-kpi-label">Totale da pagare</div>
+          <div class="fissi-kpi-val negativo">€ {{ mese.tot_importo|format_eur }}</div>
+        </div>
+        <div class="fissi-kpi">
+          <div class="fissi-kpi-label">Interessi totali</div>
+          <div class="fissi-kpi-val">€ {{ mese.tot_interessi|format_eur }}</div>
+        </div>
+        <div class="fissi-kpi">
+          <div class="fissi-kpi-label">Solo capitale</div>
+          <div class="fissi-kpi-val">€ {{ mese.tot_capitale|format_eur }}</div>
+        </div>
+        <span class="fissi-chevron" id="fissi-chev-{{ loop.index }}">▶</span>
+      </div>
+    </div>
+
+    <div class="fissi-body" id="fissi-body-{{ loop.index }}">
+      <table class="fissi-table">
+        <thead>
+          <tr>
+            <th>Data scadenza</th>
+            <th>Obbligazione</th>
+            <th style="text-align:right">Uscita cassa</th>
+            <th style="text-align:right">di cui interessi (P&amp;L)</th>
+            <th style="text-align:right">Quota capitale</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in mese.rate %}
+          <tr>
+            <td>{{ u.data[8:10] }}/{{ u.data[5:7] }}/{{ u.data[0:4] }}</td>
+            <td>{{ u.nome }}</td>
+            <td style="text-align:right">€ {{ u.importo|format_eur }}</td>
+            <td style="text-align:right;color:var(--text-muted)">
+              {% if u.quota_interessi > 0 %}€ {{ u.quota_interessi|format_eur }}{% else %}—{% endif %}
+            </td>
+            <td style="text-align:right;color:var(--text-muted)">€ {{ (u.importo - u.quota_interessi)|format_eur }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="card" style="text-align:center;padding:2rem;color:var(--text-muted)">
+    Nessuna uscita obbligatoria nei prossimi mesi.
+  </div>
+{% endif %}
+
+<script>
+function toggleFissi(bodyId, chevId) {
+  document.getElementById(bodyId).classList.toggle('open');
+  document.getElementById(chevId).classList.toggle('open');
+}
+</script>
 {% endblock %}

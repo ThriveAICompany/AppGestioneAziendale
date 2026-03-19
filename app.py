@@ -1640,7 +1640,73 @@ def toggle_pagamento_costo(rid):
 @app.route("/costi-fissi")
 @login_required
 def costi_fissi():
-    return render_template("costi_fissi.html")
+    db  = get_db()
+    c   = db.cursor()
+    today    = datetime.date.today()
+    oggi_str = today.isoformat()
+
+    rate_fin_upco = c.execute("""
+        SELECT f.nome, 'mutuo' as tipo, rf.data_scadenza,
+               rf.rata_totale as importo, rf.quota_interessi
+        FROM rate_finanziamento rf
+        JOIN finanziamenti f ON rf.finanziamento_id = f.id
+        WHERE rf.pagato = 0 AND rf.data_scadenza >= %s
+        ORDER BY rf.data_scadenza
+    """, (oggi_str,)).fetchall()
+
+    rate_pr_upco = c.execute("""
+        SELECT pr.nome, pr.tipo, rpr.data_scadenza,
+               rpr.importo, rpr.quota_interessi
+        FROM rate_piano_rientro rpr
+        JOIN piani_rientro pr ON rpr.piano_rientro_id = pr.id
+        WHERE rpr.pagato = 0 AND rpr.data_scadenza >= %s
+        ORDER BY rpr.data_scadenza
+    """, (oggi_str,)).fetchall()
+
+    prossime_uscite = []
+    for r in list(rate_fin_upco) + list(rate_pr_upco):
+        try:
+            data_d = datetime.date.fromisoformat(r['data_scadenza'])
+        except Exception:
+            continue
+        giorni = (data_d - today).days
+        prossime_uscite.append({
+            'nome': r['nome'],
+            'tipo': r['tipo'],
+            'data': r['data_scadenza'],
+            'importo': float(r['importo']),
+            'quota_interessi': float(r['quota_interessi'] or 0),
+            'giorni': giorni,
+        })
+    prossime_uscite.sort(key=lambda x: x['data'])
+
+    # Raggruppa per mese (es. "2026-03")
+    from collections import OrderedDict
+    mesi_dict = OrderedDict()
+    MESI_IT = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+               'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+    for u in prossime_uscite:
+        chiave = u['data'][:7]  # "YYYY-MM"
+        if chiave not in mesi_dict:
+            anno, mese = int(chiave[:4]), int(chiave[5:7])
+            mesi_dict[chiave] = {
+                'chiave': chiave,
+                'label': f"{MESI_IT[mese]} {anno}",
+                'rate': [],
+                'tot_importo': 0.0,
+                'tot_interessi': 0.0,
+                'tot_capitale': 0.0,
+            }
+        mesi_dict[chiave]['rate'].append(u)
+        mesi_dict[chiave]['tot_importo']   += u['importo']
+        mesi_dict[chiave]['tot_interessi'] += u['quota_interessi']
+        mesi_dict[chiave]['tot_capitale']  += u['importo'] - u['quota_interessi']
+
+    uscite_per_mese = list(mesi_dict.values())
+
+    return render_template("costi_fissi.html",
+                           uscite_per_mese=uscite_per_mese,
+                           today=oggi_str)
 
 
 @app.route("/costi-anno")
