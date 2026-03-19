@@ -1764,7 +1764,8 @@ def costi_variabili():
                            kpi_pagato=kpi_pagato,
                            kpi_residuo=kpi_residuo,
                            kpi_iva=kpi_iva,
-                           anno=anno)
+                           anno=anno,
+                           today_str=today.isoformat())
 
 
 @app.route("/costi-variabili/aggiungi", methods=["POST"])
