@@ -1729,7 +1729,7 @@ def costi_variabili():
                'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
     rows = conn.execute("""
-        SELECT id, anno, mese, data_scadenza, uscita_cassa, iva, quota_capitale, pagato
+        SELECT id, anno, mese, nome, categoria, data_scadenza, uscita_cassa, iva, quota_capitale, pagato
         FROM costi_variabili
         WHERE anno = %s
         ORDER BY data_scadenza
@@ -1774,6 +1774,8 @@ def aggiungi_costo_variabile():
     data = request.get_json()
     anno = int(data.get('anno', datetime.date.today().year))
     mese = int(data.get('mese'))
+    nome = data.get('nome', '').strip()
+    categoria = data.get('categoria', 'altro').strip() or 'altro'
     data_scadenza = data.get('data_scadenza')
     uscita_cassa = float(data.get('uscita_cassa', 0))
     iva = float(data.get('iva', 0))
@@ -1781,10 +1783,10 @@ def aggiungi_costo_variabile():
 
     conn = get_connection()
     row = conn.execute("""
-        INSERT INTO costi_variabili (anno, mese, data_scadenza, uscita_cassa, iva, quota_capitale, pagato)
-        VALUES (%s, %s, %s, %s, %s, %s, 0)
+        INSERT INTO costi_variabili (anno, mese, nome, categoria, data_scadenza, uscita_cassa, iva, quota_capitale, pagato)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0)
         RETURNING id
-    """, (anno, mese, data_scadenza, uscita_cassa, iva, quota_capitale)).fetchone()
+    """, (anno, mese, nome, categoria, data_scadenza, uscita_cassa, iva, quota_capitale)).fetchone()
     conn.commit()
     conn.close()
     return jsonify({'id': row['id']})

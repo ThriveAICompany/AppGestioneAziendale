@@ -80,6 +80,21 @@
   background: var(--surface); color: var(--text);
 }
 .form-rata-row input:focus { outline: none; border-color: var(--primary); }
+
+/* ── Badge categoria ── */
+.badge-tipo {
+  font-size: .68rem; font-weight: 700; padding: .15rem .5rem;
+  border-radius: 999px; text-transform: uppercase; letter-spacing: .04em;
+}
+.badge-tipo.affitto    { background: #dbeafe; color: #1d4ed8; }
+.badge-tipo.utilities  { background: #ede9fe; color: #7c3aed; }
+.badge-tipo.personale  { background: #fef3c7; color: #92400e; }
+.badge-tipo.marketing  { background: #d1fae5; color: #065f46; }
+.badge-tipo.software   { background: #e0f2fe; color: #0369a1; }
+.badge-tipo.consulenza { background: #fee2e2; color: #b91c1c; }
+.badge-tipo.banca      { background: #fef9c3; color: #854d0e; }
+.badge-tipo.fiscale    { background: #fce7f3; color: #9d174d; }
+.badge-tipo.altro      { background: #f1f5f9; color: #475569; }
 </style>
 
 <!-- Header -->
@@ -148,6 +163,8 @@
     <table class="var-table">
       <thead>
         <tr>
+          <th>Nome</th>
+          <th>Categoria</th>
           <th>Data scadenza</th>
           <th style="text-align:right">Uscita cassa</th>
           <th style="text-align:right">IVA</th>
@@ -159,6 +176,8 @@
       <tbody id="tbody-{{ mese.chiave }}">
         {% for v in mese.voci %}
         <tr class="{% if v.pagato %}pagata{% elif v.data_scadenza < today_str %}scaduta{% endif %}" id="row-{{ v.id }}">
+          <td>{{ v.nome or '—' }}</td>
+          <td><span class="badge-tipo {{ v.categoria }}">{{ v.categoria }}</span></td>
           <td>{{ v.data_scadenza[8:10] }}/{{ v.data_scadenza[5:7] }}/{{ v.data_scadenza[0:4] }}</td>
           <td style="text-align:right">€ {{ v.uscita_cassa|format_eur }}</td>
           <td style="text-align:right;color:var(--text-muted)">{% if v.iva > 0 %}€ {{ v.iva|format_eur }}{% else %}—{% endif %}</td>
@@ -188,6 +207,24 @@
 
     <div class="form-costo-inline" id="form-costo-{{ mese.chiave }}">
       <div class="form-rata-row">
+        <div class="fg">
+          <label>Nome *</label>
+          <input type="text" id="af-nome-{{ mese.chiave }}" placeholder="Es. Affitto ufficio" style="width:160px" />
+        </div>
+        <div class="fg">
+          <label>Categoria</label>
+          <select id="af-cat-{{ mese.chiave }}" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+            <option value="altro">altro</option>
+            <option value="affitto">affitto</option>
+            <option value="utilities">utilities</option>
+            <option value="personale">personale</option>
+            <option value="marketing">marketing</option>
+            <option value="software">software</option>
+            <option value="consulenza">consulenza</option>
+            <option value="banca">banca</option>
+            <option value="fiscale">fiscale</option>
+          </select>
+        </div>
         <div class="fg">
           <label>Data scadenza *</label>
           <input type="date" id="af-data-{{ mese.chiave }}"
@@ -231,18 +268,21 @@ function fmtEur(n) {
 }
 
 async function salvaVoce(chiave, mese, anno) {
+  const nome    = document.getElementById('af-nome-' + chiave).value.trim();
+  const cat     = document.getElementById('af-cat-' + chiave).value;
   const dataVal = document.getElementById('af-data-' + chiave).value;
   const uscita  = parseFloat(document.getElementById('af-uscita-' + chiave).value) || 0;
   const iva     = parseFloat(document.getElementById('af-iva-' + chiave).value) || 0;
   const cap     = parseFloat(document.getElementById('af-capitale-' + chiave).value) || 0;
 
+  if (!nome) { alert('Inserisci un nome per il costo.'); return; }
   if (!dataVal) { alert('Inserisci una data di scadenza.'); return; }
   if (uscita <= 0) { alert('Inserisci un importo uscita cassa maggiore di zero.'); return; }
 
   const res = await fetch('/costi-variabili/aggiungi', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({anno, mese, data_scadenza: dataVal, uscita_cassa: uscita, iva, quota_capitale: cap})
+    body: JSON.stringify({anno, mese, nome, categoria: cat, data_scadenza: dataVal, uscita_cassa: uscita, iva, quota_capitale: cap})
   });
   const data = await res.json();
   if (data.error) { alert('Errore: ' + data.error); return; }
@@ -252,16 +292,14 @@ async function salvaVoce(chiave, mese, anno) {
   // Crea o recupera tbody
   let tbody = document.getElementById('tbody-' + chiave);
   if (!tbody) {
-    // Rimuovi eventuale paragrafo "Nessun costo"
     const empty = document.getElementById('empty-' + chiave);
     if (empty) empty.remove();
-    // Crea tabella
     const body = document.getElementById('var-body-' + chiave);
     const addBtn = body.querySelector('[style*="margin-top"]');
     const table = document.createElement('table');
     table.className = 'var-table';
     table.innerHTML = `<thead><tr>
-      <th>Data scadenza</th>
+      <th>Nome</th><th>Categoria</th><th>Data scadenza</th>
       <th style="text-align:right">Uscita cassa</th>
       <th style="text-align:right">IVA</th>
       <th style="text-align:right">Quota capitale</th>
@@ -277,6 +315,8 @@ async function salvaVoce(chiave, mese, anno) {
   const tr = document.createElement('tr');
   tr.id = 'row-' + data.id;
   tr.innerHTML = `
+    <td>${nome || '—'}</td>
+    <td><span class="badge-tipo ${cat}">${cat}</span></td>
     <td>${dataFmt}</td>
     <td style="text-align:right">€ ${fmtEur(uscita)}</td>
     <td style="text-align:right;color:var(--text-muted)">${iva > 0 ? '€ ' + fmtEur(iva) : '—'}</td>
@@ -292,6 +332,7 @@ async function salvaVoce(chiave, mese, anno) {
   tbody.appendChild(tr);
 
   // Azzera campi
+  document.getElementById('af-nome-' + chiave).value = '';
   document.getElementById('af-uscita-' + chiave).value = '';
   document.getElementById('af-iva-' + chiave).value = '';
   document.getElementById('af-capitale-' + chiave).value = '';

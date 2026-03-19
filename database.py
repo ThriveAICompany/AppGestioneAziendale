@@ -302,6 +302,8 @@ def init_db():
             id SERIAL PRIMARY KEY,
             anno INTEGER NOT NULL,
             mese INTEGER NOT NULL,
+            nome TEXT NOT NULL DEFAULT '',
+            categoria TEXT NOT NULL DEFAULT 'altro',
             data_scadenza TEXT NOT NULL,
             uscita_cassa REAL NOT NULL DEFAULT 0,
             iva REAL NOT NULL DEFAULT 0,
@@ -412,6 +414,13 @@ def _migrate(conn):
     existing = _get_columns(c, 'proiezioni_uscite')
     if 'ricorrenza' not in existing:
         c.execute("ALTER TABLE proiezioni_uscite ADD COLUMN ricorrenza TEXT NOT NULL DEFAULT 'mensile'")
+
+    # costi_variabili: add nome, categoria
+    existing = _get_columns(c, 'costi_variabili')
+    if 'nome' not in existing:
+        c.execute("ALTER TABLE costi_variabili ADD COLUMN nome TEXT NOT NULL DEFAULT ''")
+    if 'categoria' not in existing:
+        c.execute("ALTER TABLE costi_variabili ADD COLUMN categoria TEXT NOT NULL DEFAULT 'altro'")
 
     # finanziamenti bancari
     c.execute("""
