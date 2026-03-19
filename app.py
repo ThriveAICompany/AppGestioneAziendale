@@ -1637,6 +1637,12 @@ def toggle_pagamento_costo(rid):
     return jsonify(result)
 
 
+@app.route("/costi-fissi")
+@login_required
+def costi_fissi():
+    return render_template("costi_fissi.html")
+
+
 @app.route("/costi-anno")
 @login_required
 def costi_anno():

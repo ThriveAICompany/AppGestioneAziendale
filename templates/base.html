@@ -38,13 +38,34 @@
           </a>
         </li>
 
-        <li>
-          <a href="{{ url_for('costi_anno') }}"
-             class="sidebar-item {% if request.endpoint == 'costi_anno' %}active{% endif %}"
-             data-label="Costi">
+        <li class="nav-group">
+          <div class="sidebar-item nav-parent {% if request.endpoint in ['costi_anno', 'costi_fissi', 'finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
+               data-label="Costi"
+               onclick="toggleCostiMenu()">
             <i data-lucide="table-2" class="sidebar-icon"></i>
             <span class="sidebar-label">Costi</span>
-          </a>
+            <svg class="nav-chevron" id="costiChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+          <ul class="nav-submenu" id="costiSubmenu">
+            <li>
+              <a href="{{ url_for('costi_fissi') }}"
+                 class="sidebar-item nav-subitem {% if request.endpoint == 'costi_fissi' %}active{% endif %}"
+                 data-label="Fissi">
+                <span class="nav-subitem-dot"></span>
+                <span class="sidebar-label">Fissi</span>
+              </a>
+            </li>
+            <li>
+              <a href="{{ url_for('finanziamenti') }}"
+                 class="sidebar-item nav-subitem {% if request.endpoint in ['finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
+                 data-label="Debiti">
+                <span class="nav-subitem-dot"></span>
+                <span class="sidebar-label">Debiti</span>
+              </a>
+            </li>
+          </ul>
         </li>
 
         <li>
@@ -92,15 +113,6 @@
           </a>
         </li>
 
-        <li>
-          <a href="{{ url_for('finanziamenti') }}"
-             class="sidebar-item {% if request.endpoint in ['finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
-             data-label="Debiti">
-            <i data-lucide="landmark" class="sidebar-icon"></i>
-            <span class="sidebar-label">Debiti</span>
-          </a>
-        </li>
-
 
         <li>
           <a href="{{ url_for('cfo') }}"
@@ -143,9 +155,30 @@
     // Toggle desktop (collapse/expand)
     toggleBtn.addEventListener('click', () => {
       sidebar.classList.toggle('sidebar-collapsed');
-      localStorage.setItem('sidebar',
-        sidebar.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+      const collapsed = sidebar.classList.contains('sidebar-collapsed');
+      localStorage.setItem('sidebar', collapsed ? 'collapsed' : 'open');
+      if (collapsed) {
+        document.getElementById('costiSubmenu').classList.remove('open');
+        document.getElementById('costiChevron').classList.remove('open');
+      }
     });
+
+    function toggleCostiMenu() {
+      if (sidebar.classList.contains('sidebar-collapsed')) return;
+      const submenu = document.getElementById('costiSubmenu');
+      const chevron = document.getElementById('costiChevron');
+      const isOpen = submenu.classList.contains('open');
+      submenu.classList.toggle('open', !isOpen);
+      chevron.classList.toggle('open', !isOpen);
+      localStorage.setItem('costiMenuOpen', String(!isOpen));
+    }
+
+    // Auto-open submenu if child page is active or was left open
+    const costiChildActive = {{ 'true' if request.endpoint in ['costi_fissi','finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] else 'false' }};
+    if ((costiChildActive || localStorage.getItem('costiMenuOpen') === 'true') && !sidebar.classList.contains('sidebar-collapsed')) {
+      document.getElementById('costiSubmenu').classList.add('open');
+      document.getElementById('costiChevron').classList.add('open');
+    }
 
     // Apri sidebar su mobile
     mobileBtn.addEventListener('click', () => {
