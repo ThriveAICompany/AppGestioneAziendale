@@ -3,6 +3,28 @@
 
 {% block content %}
 <style>
+.fissi-kpi-anno-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.fissi-kpi-anno-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.2rem 1.4rem;
+}
+.fissi-kpi-anno-label {
+  font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem;
+}
+.fissi-kpi-anno-val {
+  font-size: 1.5rem; font-weight: 700; line-height: 1.1;
+}
+.fissi-kpi-anno-sub {
+  font-size: .75rem; color: var(--text-muted); margin-top: .25rem;
+}
+@media (max-width: 600px) {
+  .fissi-kpi-anno-row { grid-template-columns: 1fr; }
+}
+
 .fissi-card {
   background: var(--surface); border-radius: var(--radius);
   box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
@@ -41,6 +63,24 @@
     <p class="text-muted" style="font-size:.88rem;margin-top:.2rem">
       Rate mutui e piani di rientro fiscali non ancora pagate — uscite certe dalla cassa.
     </p>
+  </div>
+</div>
+
+<div class="fissi-kpi-anno-row">
+  <div class="fissi-kpi-anno-card">
+    <div class="fissi-kpi-anno-label">Totale da pagare {{ anno }}</div>
+    <div class="fissi-kpi-anno-val negativo">€ {{ kpi_anno_importo|format_eur }}</div>
+    <div class="fissi-kpi-anno-sub">Uscita totale dalla cassa</div>
+  </div>
+  <div class="fissi-kpi-anno-card">
+    <div class="fissi-kpi-anno-label">Totale interessi {{ anno }}</div>
+    <div class="fissi-kpi-anno-val">€ {{ kpi_anno_interessi|format_eur }}</div>
+    <div class="fissi-kpi-anno-sub">Costo finanziario (P&amp;L)</div>
+  </div>
+  <div class="fissi-kpi-anno-card">
+    <div class="fissi-kpi-anno-label">Solo capitale {{ anno }}</div>
+    <div class="fissi-kpi-anno-val">€ {{ kpi_anno_capitale|format_eur }}</div>
+    <div class="fissi-kpi-anno-sub">Rimborso quota capitale</div>
   </div>
 </div>
 

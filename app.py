@@ -1703,10 +1703,19 @@ def costi_fissi():
         mesi_dict[chiave]['tot_capitale']  += u['importo'] - u['quota_interessi']
 
     uscite_per_mese = list(mesi_dict.values())
+
+    kpi_anno_importo   = sum(m['tot_importo']   for m in uscite_per_mese)
+    kpi_anno_interessi = sum(m['tot_interessi'] for m in uscite_per_mese)
+    kpi_anno_capitale  = sum(m['tot_capitale']  for m in uscite_per_mese)
+
     conn.close()
 
     return render_template("costi_fissi.html",
                            uscite_per_mese=uscite_per_mese,
+                           kpi_anno_importo=kpi_anno_importo,
+                           kpi_anno_interessi=kpi_anno_interessi,
+                           kpi_anno_capitale=kpi_anno_capitale,
+                           anno=anno_str,
                            today=today.isoformat())
 
 
