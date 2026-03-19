@@ -3470,6 +3470,7 @@ def proiezioni():
             m += skip
 
     # Rate finanziamenti (mutui) per mese — tutto l'anno incluse già pagate
+    finanziamenti_per_mese = [0.0] * 13
     rate_fin_rows = conn.execute("""
         SELECT CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
                SUM(rata_totale) as totale
@@ -3478,9 +3479,10 @@ def proiezioni():
         GROUP BY mese
     """, (str(anno),)).fetchall()
     for r in rate_fin_rows:
-        uscite_per_mese[r['mese']] += float(r['totale'])
+        finanziamenti_per_mese[r['mese']] += float(r['totale'])
 
     # Rate piani di rientro fiscali per mese — tutto l'anno incluse già pagate
+    piani_rientro_per_mese = [0.0] * 13
     rate_pr_rows = conn.execute("""
         SELECT CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
                SUM(importo) as totale
@@ -3489,16 +3491,24 @@ def proiezioni():
         GROUP BY mese
     """, (str(anno),)).fetchall()
     for r in rate_pr_rows:
-        uscite_per_mese[r['mese']] += float(r['totale'])
+        piani_rientro_per_mese[r['mese']] += float(r['totale'])
 
     oggi = datetime.date.today()
     # Costi totali = uscite proiettate + quota fornitore da ricavi + rate finanziamenti/piani rientro
-    costi_totali = [round(uscite_per_mese[m] + fornitori_per_mese[m], 2) for m in range(13)]
+    costi_totali = [round(
+        uscite_per_mese[m] + fornitori_per_mese[m] + finanziamenti_per_mese[m] + piani_rientro_per_mese[m], 2
+    ) for m in range(13)]
 
     chart_labels = json.dumps([MESI_IT[m] for m in range(1, 13)])
     chart_ricavi = json.dumps([round(ricavi_per_mese[m], 2) for m in range(1, 13)])
     chart_uscite = json.dumps([costi_totali[m] for m in range(1, 13)])
     chart_delta  = json.dumps([round(ricavi_per_mese[m] - costi_totali[m], 2) for m in range(1, 13)])
+
+    # Dettaglio uscite per categoria (JSON per la sezione breakdown)
+    breakdown_uscite       = json.dumps([round(uscite_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_finanziamenti = json.dumps([round(finanziamenti_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_piani_rientro = json.dumps([round(piani_rientro_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_fornitori    = json.dumps([round(fornitori_per_mese[m], 2) for m in range(1, 13)])
 
     conn.close()
     return render_template("proiezioni.html",
@@ -3510,6 +3520,10 @@ def proiezioni():
         chart_ricavi=chart_ricavi,
         chart_uscite=chart_uscite,
         chart_delta=chart_delta,
+        breakdown_uscite=breakdown_uscite,
+        breakdown_finanziamenti=breakdown_finanziamenti,
+        breakdown_piani_rientro=breakdown_piani_rientro,
+        breakdown_fornitori=breakdown_fornitori,
     )
 
 
