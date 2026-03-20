@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+{% block title %}Fatture Passive{% endblock %}
+
+{% block content %}
+<style>
+/* ── KPI anno ── */
+.fp-kpi-anno-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.fp-kpi-anno-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.2rem 1.4rem;
+}
+.fp-kpi-anno-label {
+  font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem;
+}
+.fp-kpi-anno-val { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.fp-kpi-anno-sub { font-size: .75rem; color: var(--text-muted); margin-top: .25rem; }
+.fp-kpi-anno-val.alert { color: var(--red); }
+
+@media (max-width: 700px) { .fp-kpi-anno-row { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 400px) { .fp-kpi-anno-row { grid-template-columns: 1fr; } }
+
+/* ── Card accordion ── */
+.fp-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
+}
+.fp-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .9rem 1.2rem; cursor: pointer; gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.fp-card-header:hover { background: var(--surface-hover, #f8fafa); }
+.fp-card-title { font-weight: 700; font-size: .95rem; }
+.fp-kpi-row { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+.fp-kpi { text-align: right; }
+.fp-kpi-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.fp-kpi-val { font-size: .95rem; font-weight: 700; }
+.fp-chevron { font-size: .75rem; color: var(--text-muted); transition: transform .2s; }
+.fp-chevron.open { transform: rotate(90deg); }
+.fp-body { display: none; padding: 1rem 1.2rem 1.2rem; }
+.fp-body.open { display: block; }
+
+/* ── Tabella ── */
+.fp-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .75rem; }
+.fp-table th {
+  text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem;
+  border-bottom: 2px solid var(--border);
+}
+.fp-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.fp-table tr:last-child td { border-bottom: none; }
+.fp-table tr.pagata td { opacity: .55; }
+
+/* ── Bottoni stato ── */
+.btn-stato {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .2rem .55rem; border-radius: 999px; border: 1.5px solid var(--border);
+  background: transparent; cursor: pointer; font-size: .72rem; font-weight: 600;
+  color: var(--text-muted); transition: all .15s; white-space: nowrap;
+}
+.btn-stato.on-fornitore { background: var(--green); border-color: var(--green); color: #fff; }
+.btn-stato.on-ritenuta  { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.btn-stato:hover:not(.on-fornitore):not(.on-ritenuta) { border-color: var(--primary); color: var(--primary); }
+
+/* ── Badge categoria ── */
+.badge-tipo {
+  font-size: .68rem; font-weight: 700; padding: .15rem .5rem;
+  border-radius: 999px; text-transform: uppercase; letter-spacing: .04em;
+}
+.badge-tipo.consulenza   { background: #fee2e2; color: #b91c1c; }
+.badge-tipo.professionale{ background: #dbeafe; color: #1d4ed8; }
+.badge-tipo.fiscale      { background: #fce7f3; color: #9d174d; }
+.badge-tipo.legale       { background: #ede9fe; color: #7c3aed; }
+.badge-tipo.altro        { background: #f1f5f9; color: #475569; }
+
+/* ── Form aggiunta inline ── */
+.form-fp-inline {
+  display: none; margin-top: .75rem;
+  background: #f8fafa; border-radius: var(--radius-sm);
+  padding: .8rem 1rem; border: 1px solid var(--border);
+}
+.form-fp-inline.open { display: block; }
+.form-fp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: .6rem .8rem;
+  align-items: end;
+}
+.form-fp-grid .fg { display: flex; flex-direction: column; gap: .2rem; }
+.form-fp-grid label { font-size: .72rem; font-weight: 600; color: var(--text-muted); }
+.form-fp-grid input, .form-fp-grid select, .form-fp-grid textarea {
+  padding: .35rem .6rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: .85rem;
+  background: var(--surface); color: var(--text);
+}
+.form-fp-grid input:focus, .form-fp-grid select:focus { outline: none; border-color: var(--primary); }
+
+/* ── Riepilogo calcolo ── */
+.fp-calc-box {
+  display: none; margin-top: .75rem;
+  background: #f0fdf4; border: 1px solid #86efac;
+  border-radius: var(--radius-sm); padding: .7rem 1rem; font-size: .83rem;
+}
+.fp-calc-box.visible { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .3rem .8rem; }
+.fp-calc-row { display: flex; justify-content: space-between; gap: .5rem; }
+.fp-calc-label { color: var(--text-muted); }
+.fp-calc-val { font-weight: 700; }
+.fp-calc-row.highlight .fp-calc-val { color: var(--primary); font-size: .9rem; }
+.fp-calc-row.ritenuta .fp-calc-val { color: #7c3aed; }
+
+.form-fp-actions { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+</style>
+
+<!-- Header -->
+<div class="page-header" style="margin-bottom:1.5rem">
+  <div>
+    <h1 class="page-title">Fatture Passive</h1>
+    <p class="text-muted" style="font-size:.88rem;margin-top:.2rem">
+      Fatture da professionisti con IVA e ritenuta d'acconto — traccia pagamenti e versamenti F24.
+    </p>
+  </div>
+</div>
+
+<!-- KPI Anno -->
+<div class="fp-kpi-anno-row">
+  <div class="fp-kpi-anno-card">
+    <div class="fp-kpi-anno-label">Imponibile {{ anno }}</div>
+    <div class="fp-kpi-anno-val negativo">€ {{ kpi_imponibile|format_eur }}</div>
+    <div class="fp-kpi-anno-sub">Totale costo deducibile</div>
+  </div>
+  <div class="fp-kpi-anno-card">
+    <div class="fp-kpi-anno-label">IVA a credito {{ anno }}</div>
+    <div class="fp-kpi-anno-val">€ {{ kpi_iva|format_eur }}</div>
+    <div class="fp-kpi-anno-sub">IVA recuperabile in liquidazione</div>
+  </div>
+  <div class="fp-kpi-anno-card">
+    <div class="fp-kpi-anno-label">Ritenute da versare</div>
+    <div class="fp-kpi-anno-val {% if kpi_ritenute_pendenti > 0 %}alert{% endif %}">€ {{ kpi_ritenute_pendenti|format_eur }}</div>
+    <div class="fp-kpi-anno-sub">F24 entro il 16 del mese dopo</div>
+  </div>
+  <div class="fp-kpi-anno-card">
+    <div class="fp-kpi-anno-label">Netto pagato {{ anno }}</div>
+    <div class="fp-kpi-anno-val">€ {{ kpi_netto_pagato|format_eur }}</div>
+    <div class="fp-kpi-anno-sub">Uscito dalla cassa</div>
+  </div>
+</div>
+
+<!-- Accordion mensile -->
+{% for mese in mesi_list %}
+<div class="fp-card" id="fp-card-{{ mese.chiave }}">
+  <div class="fp-card-header" onclick="toggleFp('fp-body-{{ mese.chiave }}', 'fp-chev-{{ mese.chiave }}')">
+    <div class="fp-card-title">{{ mese.label }}</div>
+    <div class="fp-kpi-row">
+      <div class="fp-kpi">
+        <div class="fp-kpi-label">Imponibile</div>
+        <div class="fp-kpi-val negativo">€ {{ mese.tot_imponibile|format_eur }}</div>
+      </div>
+      <div class="fp-kpi">
+        <div class="fp-kpi-label">IVA credito</div>
+        <div class="fp-kpi-val">€ {{ mese.tot_iva|format_eur }}</div>
+      </div>
+      <div class="fp-kpi">
+        <div class="fp-kpi-label">Ritenute pend.</div>
+        <div class="fp-kpi-val {% if mese.tot_ritenute > 0 %}alert{% else %}{% endif %}" style="{% if mese.tot_ritenute > 0 %}color:var(--red){% endif %}">€ {{ mese.tot_ritenute|format_eur }}</div>
+      </div>
+      <div class="fp-kpi">
+        <div class="fp-kpi-label">Netto a pagare</div>
+        <div class="fp-kpi-val">€ {{ mese.tot_netto|format_eur }}</div>
+      </div>
+      <span class="fp-chevron" id="fp-chev-{{ mese.chiave }}">▶</span>
+    </div>
+  </div>
+
+  <div class="fp-body" id="fp-body-{{ mese.chiave }}">
+
+    {% if mese.voci %}
+    <table class="fp-table" id="fp-table-{{ mese.chiave }}">
+      <thead>
+        <tr>
+          <th>N° Fattura</th>
+          <th>Fornitore</th>
+          <th>Data</th>
+          <th>Categoria</th>
+          <th style="text-align:right">Imponibile</th>
+          <th style="text-align:right">IVA</th>
+          <th style="text-align:right">Ritenuta</th>
+          <th style="text-align:right">Netto a pagare</th>
+          <th style="text-align:center">Fornitore</th>
+          <th style="text-align:center">Ritenuta F24</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="fp-tbody-{{ mese.chiave }}">
+        {% for v in mese.voci %}
+        <tr class="{% if v.pagato_fornitore and v.ritenuta_versata %}pagata{% endif %}" id="fp-row-{{ v.id }}">
+          <td>{{ v.numero_fattura or '—' }}</td>
+          <td style="font-weight:600">{{ v.fornitore }}</td>
+          <td>{{ v.data_fattura[8:10] }}/{{ v.data_fattura[5:7] }}/{{ v.data_fattura[0:4] }}</td>
+          <td><span class="badge-tipo {{ v.categoria }}">{{ v.categoria }}</span></td>
+          <td style="text-align:right">€ {{ v.totale_imponibile|format_eur }}</td>
+          <td style="text-align:right;color:var(--text-muted)">€ {{ v.importo_iva|format_eur }}</td>
+          <td style="text-align:right;color:#7c3aed;font-weight:600">€ {{ v.ritenuta_importo|format_eur }}</td>
+          <td style="text-align:right;font-weight:700">€ {{ v.netto_a_pagare|format_eur }}</td>
+          <td style="text-align:center">
+            <button class="btn-stato {% if v.pagato_fornitore %}on-fornitore{% endif %}"
+                    onclick="toggleFornitore({{ v.id }}, '{{ mese.chiave }}', this)"
+                    title="Pagato al fornitore">
+              {% if v.pagato_fornitore %}✓ Pagato{% else %}Pagare{% endif %}
+            </button>
+          </td>
+          <td style="text-align:center">
+            <button class="btn-stato {% if v.ritenuta_versata %}on-ritenuta{% endif %}"
+                    onclick="toggleRitenuta({{ v.id }}, '{{ mese.chiave }}', this)"
+                    title="Ritenuta versata via F24">
+              {% if v.ritenuta_versata %}✓ Versata{% else %}Da versare{% endif %}
+            </button>
+          </td>
+          <td>
+            <button class="btn-icon" style="opacity:.4;font-size:.75rem"
+                    onclick="eliminaFattura({{ v.id }}, '{{ mese.chiave }}')">✕</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:.5rem" id="fp-empty-{{ mese.chiave }}">Nessuna fattura inserita.</p>
+    {% endif %}
+
+    <div style="margin-top:.75rem">
+      <button class="btn btn-secondary btn-sm" onclick="toggleFormFp('fp-form-{{ mese.chiave }}')">
+        + Aggiungi fattura
+      </button>
+    </div>
+
+    <!-- Form inline -->
+    <div class="form-fp-inline" id="fp-form-{{ mese.chiave }}">
+      <div class="form-fp-grid">
+        <div class="fg">
+          <label>N° Fattura</label>
+          <input type="text" id="fp-num-{{ mese.chiave }}" placeholder="Es. 28/001" style="width:100%" />
+        </div>
+        <div class="fg">
+          <label>Data fattura *</label>
+          <input type="date" id="fp-data-{{ mese.chiave }}"
+                 value="{{ anno }}-{{ '%02d'|format(mese.mese) }}-01" style="width:100%" />
+        </div>
+        <div class="fg" style="grid-column: span 2">
+          <label>Fornitore *</label>
+          <input type="text" id="fp-fornitore-{{ mese.chiave }}" placeholder="Es. Licci Cristian" style="width:100%" />
+        </div>
+        <div class="fg">
+          <label>P.IVA fornitore</label>
+          <input type="text" id="fp-piva-{{ mese.chiave }}" placeholder="04047370236" style="width:100%" />
+        </div>
+        <div class="fg">
+          <label>Categoria</label>
+          <select id="fp-cat-{{ mese.chiave }}" style="width:100%">
+            <option value="consulenza">consulenza</option>
+            <option value="professionale">professionale</option>
+            <option value="fiscale">fiscale</option>
+            <option value="legale">legale</option>
+            <option value="altro">altro</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Imponibile (€) *</label>
+          <input type="number" id="fp-imponibile-{{ mese.chiave }}" step="0.01" min="0" placeholder="0.00"
+                 oninput="calcolaFp('{{ mese.chiave }}')" style="width:100%" />
+        </div>
+        <div class="fg">
+          <label>Cassa prev. (%)</label>
+          <input type="number" id="fp-cassa-{{ mese.chiave }}" step="0.01" min="0" value="4"
+                 oninput="calcolaFp('{{ mese.chiave }}')" style="width:100%" />
+        </div>
+        <div class="fg">
+          <label>IVA (%)</label>
+          <input type="number" id="fp-iva-{{ mese.chiave }}" step="0.01" min="0" value="22"
+                 oninput="calcolaFp('{{ mese.chiave }}')" style="width:100%" />
+        </div>
+        <div class="fg">
+          <label>Ritenuta (%)</label>
+          <input type="number" id="fp-rit-{{ mese.chiave }}" step="0.01" min="0" value="20"
+                 oninput="calcolaFp('{{ mese.chiave }}')" style="width:100%" />
+        </div>
+      </div>
+
+      <!-- Riepilogo calcolo in tempo reale -->
+      <div class="fp-calc-box" id="fp-calc-{{ mese.chiave }}">
+        <div class="fp-calc-row"><span class="fp-calc-label">Totale imponibile</span><span class="fp-calc-val" id="fc-timp-{{ mese.chiave }}">—</span></div>
+        <div class="fp-calc-row"><span class="fp-calc-label">IVA</span><span class="fp-calc-val" id="fc-iva-{{ mese.chiave }}">—</span></div>
+        <div class="fp-calc-row"><span class="fp-calc-label">Totale parcella</span><span class="fp-calc-val" id="fc-tot-{{ mese.chiave }}">—</span></div>
+        <div class="fp-calc-row ritenuta"><span class="fp-calc-label">Ritenuta d'acconto</span><span class="fp-calc-val" id="fc-rit-{{ mese.chiave }}">—</span></div>
+        <div class="fp-calc-row highlight"><span class="fp-calc-label">Netto a pagare</span><span class="fp-calc-val" id="fc-netto-{{ mese.chiave }}">—</span></div>
+      </div>
+
+      <div class="form-fp-actions">
+        <button class="btn btn-primary btn-sm"
+                onclick="salvaFattura('{{ mese.chiave }}', {{ mese.mese }}, {{ anno }})">Aggiungi</button>
+        <button class="btn btn-secondary btn-sm"
+                onclick="toggleFormFp('fp-form-{{ mese.chiave }}')">Annulla</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endfor %}
+
+<script>
+function toggleFp(bodyId, chevId) {
+  document.getElementById(bodyId).classList.toggle('open');
+  document.getElementById(chevId).classList.toggle('open');
+}
+
+function toggleFormFp(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+function fmtEur(n) {
+  return '€ ' + n.toLocaleString('it-IT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function calcolaFp(chiave) {
+  const imponibile = parseFloat(document.getElementById('fp-imponibile-' + chiave).value) || 0;
+  const cassaPerc  = parseFloat(document.getElementById('fp-cassa-' + chiave).value) || 0;
+  const ivaPerc    = parseFloat(document.getElementById('fp-iva-' + chiave).value) || 22;
+  const ritPerc    = parseFloat(document.getElementById('fp-rit-' + chiave).value) || 20;
+
+  if (imponibile <= 0) {
+    document.getElementById('fp-calc-' + chiave).classList.remove('visible');
+    return;
+  }
+
+  const cassaImp       = Math.round(imponibile * cassaPerc / 100 * 100) / 100;
+  const totImponibile  = Math.round((imponibile + cassaImp) * 100) / 100;
+  const importoIva     = Math.round(totImponibile * ivaPerc / 100 * 100) / 100;
+  const totLordo       = Math.round((totImponibile + importoIva) * 100) / 100;
+  const ritenuta       = Math.round(imponibile * ritPerc / 100 * 100) / 100;
+  const netto          = Math.round((totLordo - ritenuta) * 100) / 100;
+
+  document.getElementById('fc-timp-' + chiave).textContent = fmtEur(totImponibile);
+  document.getElementById('fc-iva-' + chiave).textContent  = fmtEur(importoIva);
+  document.getElementById('fc-tot-' + chiave).textContent  = fmtEur(totLordo);
+  document.getElementById('fc-rit-' + chiave).textContent  = '- ' + fmtEur(ritenuta);
+  document.getElementById('fc-netto-' + chiave).textContent = fmtEur(netto);
+  document.getElementById('fp-calc-' + chiave).classList.add('visible');
+}
+
+async function salvaFattura(chiave, mese, anno) {
+  const numFattura = document.getElementById('fp-num-' + chiave).value.trim();
+  const dataFattura = document.getElementById('fp-data-' + chiave).value;
+  const fornitore  = document.getElementById('fp-fornitore-' + chiave).value.trim();
+  const piva       = document.getElementById('fp-piva-' + chiave).value.trim();
+  const categoria  = document.getElementById('fp-cat-' + chiave).value;
+  const imponibile = parseFloat(document.getElementById('fp-imponibile-' + chiave).value) || 0;
+  const cassaPerc  = parseFloat(document.getElementById('fp-cassa-' + chiave).value) || 0;
+  const ivaPerc    = parseFloat(document.getElementById('fp-iva-' + chiave).value) || 22;
+  const ritPerc    = parseFloat(document.getElementById('fp-rit-' + chiave).value) || 20;
+
+  if (!fornitore) { alert('Inserisci il nome del fornitore.'); return; }
+  if (!dataFattura) { alert('Inserisci la data della fattura.'); return; }
+  if (imponibile <= 0) { alert('Inserisci un imponibile maggiore di zero.'); return; }
+
+  const res = await fetch('/fatture-passive/aggiungi', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      numero_fattura: numFattura, data_fattura: dataFattura,
+      fornitore, p_iva_fornitore: piva, categoria,
+      imponibile, cassa_previdenza_perc: cassaPerc,
+      aliquota_iva: ivaPerc, ritenuta_perc: ritPerc
+    })
+  });
+  const data = await res.json();
+  if (data.error) { alert('Errore: ' + data.error); return; }
+
+  toggleFormFp('fp-form-' + chiave);
+  document.getElementById('fp-calc-' + chiave).classList.remove('visible');
+
+  // Aggiorna/crea tabella
+  let tbody = document.getElementById('fp-tbody-' + chiave);
+  if (!tbody) {
+    const empty = document.getElementById('fp-empty-' + chiave);
+    if (empty) empty.remove();
+    const body = document.getElementById('fp-body-' + chiave);
+    const addBtn = body.querySelector('[style*="margin-top"]');
+    const table = document.createElement('table');
+    table.className = 'fp-table';
+    table.id = 'fp-table-' + chiave;
+    table.innerHTML = `<thead><tr>
+      <th>N° Fattura</th><th>Fornitore</th><th>Data</th><th>Categoria</th>
+      <th style="text-align:right">Imponibile</th><th style="text-align:right">IVA</th>
+      <th style="text-align:right">Ritenuta</th><th style="text-align:right">Netto a pagare</th>
+      <th style="text-align:center">Fornitore</th><th style="text-align:center">Ritenuta F24</th>
+      <th></th>
+    </tr></thead><tbody id="fp-tbody-${chiave}"></tbody>`;
+    body.insertBefore(table, addBtn);
+    tbody = document.getElementById('fp-tbody-' + chiave);
+  }
+
+  const d = dataFattura;
+  const dataFmt = d.substring(8,10) + '/' + d.substring(5,7) + '/' + d.substring(0,4);
+  const tr = document.createElement('tr');
+  tr.id = 'fp-row-' + data.id;
+  tr.innerHTML = `
+    <td>${numFattura || '—'}</td>
+    <td style="font-weight:600">${fornitore}</td>
+    <td>${dataFmt}</td>
+    <td><span class="badge-tipo ${categoria}">${categoria}</span></td>
+    <td style="text-align:right">${fmtEur(data.totale_imponibile)}</td>
+    <td style="text-align:right;color:var(--text-muted)">${fmtEur(data.importo_iva)}</td>
+    <td style="text-align:right;color:#7c3aed;font-weight:600">${fmtEur(data.ritenuta_importo)}</td>
+    <td style="text-align:right;font-weight:700">${fmtEur(data.netto_a_pagare)}</td>
+    <td style="text-align:center">
+      <button class="btn-stato" onclick="toggleFornitore(${data.id},'${chiave}',this)">Pagare</button>
+    </td>
+    <td style="text-align:center">
+      <button class="btn-stato" onclick="toggleRitenuta(${data.id},'${chiave}',this)">Da versare</button>
+    </td>
+    <td>
+      <button class="btn-icon" style="opacity:.4;font-size:.75rem"
+              onclick="eliminaFattura(${data.id},'${chiave}')">✕</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+
+  // Reset form
+  document.getElementById('fp-num-' + chiave).value = '';
+  document.getElementById('fp-fornitore-' + chiave).value = '';
+  document.getElementById('fp-piva-' + chiave).value = '';
+  document.getElementById('fp-imponibile-' + chiave).value = '';
+}
+
+async function toggleFornitore(id, chiave, btn) {
+  btn.disabled = true;
+  const res = await fetch('/fatture-passive/pagata-fornitore/' + id, {method: 'POST'});
+  const data = await res.json();
+  btn.disabled = false;
+  if (data.error) { alert('Errore'); return; }
+  btn.classList.toggle('on-fornitore', !!data.pagato_fornitore);
+  btn.textContent = data.pagato_fornitore ? '✓ Pagato' : 'Pagare';
+  aggiornaStatoRiga(id);
+}
+
+async function toggleRitenuta(id, chiave, btn) {
+  btn.disabled = true;
+  const res = await fetch('/fatture-passive/ritenuta-versata/' + id, {method: 'POST'});
+  const data = await res.json();
+  btn.disabled = false;
+  if (data.error) { alert('Errore'); return; }
+  btn.classList.toggle('on-ritenuta', !!data.ritenuta_versata);
+  btn.textContent = data.ritenuta_versata ? '✓ Versata' : 'Da versare';
+  aggiornaStatoRiga(id);
+}
+
+function aggiornaStatoRiga(id) {
+  const row = document.getElementById('fp-row-' + id);
+  if (!row) return;
+  const btnF = row.querySelector('.btn-stato.on-fornitore, .btn-stato:not(.on-ritenuta):not(.on-fornitore)');
+  const allOn = row.querySelectorAll('.btn-stato.on-fornitore').length > 0
+             && row.querySelectorAll('.btn-stato.on-ritenuta').length > 0;
+  row.className = allOn ? 'pagata' : '';
+}
+
+async function eliminaFattura(id, chiave) {
+  if (!confirm('Eliminare questa fattura?')) return;
+  const res = await fetch('/fatture-passive/elimina/' + id, {method: 'POST'});
+  const data = await res.json();
+  if (!data.ok) { alert('Errore eliminazione'); return; }
+  document.getElementById('fp-row-' + id).remove();
+}
+</script>
+{% endblock %}

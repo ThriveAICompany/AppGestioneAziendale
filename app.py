@@ -1932,6 +1932,170 @@ def elimina_costo_variabile(id):
     return jsonify({'ok': True})
 
 
+# ── Fatture Passive ────────────────────────────────────────────────────────────
+
+@app.route("/fatture-passive")
+@login_required
+def fatture_passive():
+    conn = get_connection()
+    today = datetime.date.today()
+    anno = today.year
+    MESI_IT = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+               'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+
+    rows = conn.execute("""
+        SELECT id, numero_fattura, data_fattura, anno, mese, fornitore, p_iva_fornitore,
+               categoria, imponibile, cassa_previdenza_perc, cassa_previdenza_imp,
+               totale_imponibile, aliquota_iva, importo_iva, totale_lordo,
+               ritenuta_perc, ritenuta_importo, netto_a_pagare,
+               pagato_fornitore, data_pagamento_fornitore,
+               ritenuta_versata, data_versamento_ritenuta, note
+        FROM fatture_passive
+        WHERE anno = %s
+        ORDER BY data_fattura
+    """, (anno,)).fetchall()
+
+    mesi_list = []
+    for m in range(1, 13):
+        voci = [dict(r) for r in rows if r['mese'] == m]
+        tot_imponibile = sum(v['totale_imponibile'] for v in voci)
+        tot_iva = sum(v['importo_iva'] for v in voci)
+        tot_ritenute = sum(v['ritenuta_importo'] for v in voci if not v['ritenuta_versata'])
+        tot_netto = sum(v['netto_a_pagare'] for v in voci)
+        mesi_list.append({
+            'mese': m,
+            'label': f"{MESI_IT[m]} {anno}",
+            'chiave': f"{anno}-{m:02d}",
+            'voci': voci,
+            'tot_imponibile': tot_imponibile,
+            'tot_iva': tot_iva,
+            'tot_ritenute': tot_ritenute,
+            'tot_netto': tot_netto,
+        })
+
+    kpi_imponibile = sum(m['tot_imponibile'] for m in mesi_list)
+    kpi_iva = sum(m['tot_iva'] for m in mesi_list)
+    kpi_ritenute_pendenti = sum(
+        v['ritenuta_importo'] for r in rows for v in [dict(r)] if not v['ritenuta_versata']
+    )
+    kpi_netto_pagato = sum(
+        dict(r)['netto_a_pagare'] for r in rows if dict(r)['pagato_fornitore']
+    )
+    conn.close()
+
+    return render_template("fatture_passive.html",
+                           mesi_list=mesi_list,
+                           kpi_imponibile=kpi_imponibile,
+                           kpi_iva=kpi_iva,
+                           kpi_ritenute_pendenti=kpi_ritenute_pendenti,
+                           kpi_netto_pagato=kpi_netto_pagato,
+                           anno=anno,
+                           today_str=today.isoformat())
+
+
+@app.route("/fatture-passive/aggiungi", methods=["POST"])
+@login_required
+def aggiungi_fattura_passiva():
+    data = request.get_json()
+    today = datetime.date.today()
+    data_fattura = data.get('data_fattura', today.isoformat())
+    try:
+        dt = datetime.date.fromisoformat(data_fattura)
+        anno = dt.year
+        mese = dt.month
+    except Exception:
+        anno = today.year
+        mese = today.month
+
+    numero_fattura = data.get('numero_fattura', '').strip()
+    fornitore = data.get('fornitore', '').strip()
+    p_iva_fornitore = data.get('p_iva_fornitore', '').strip()
+    categoria = data.get('categoria', 'consulenza').strip() or 'consulenza'
+    note = data.get('note', '').strip()
+
+    imponibile = float(data.get('imponibile', 0))
+    cassa_previdenza_perc = float(data.get('cassa_previdenza_perc', 0))
+    aliquota_iva = float(data.get('aliquota_iva', 22))
+    ritenuta_perc = float(data.get('ritenuta_perc', 20))
+
+    cassa_previdenza_imp = round(imponibile * cassa_previdenza_perc / 100, 2)
+    totale_imponibile = round(imponibile + cassa_previdenza_imp, 2)
+    importo_iva = round(totale_imponibile * aliquota_iva / 100, 2)
+    totale_lordo = round(totale_imponibile + importo_iva, 2)
+    ritenuta_importo = round(imponibile * ritenuta_perc / 100, 2)
+    netto_a_pagare = round(totale_lordo - ritenuta_importo, 2)
+
+    conn = get_connection()
+    row = conn.execute("""
+        INSERT INTO fatture_passive (
+            numero_fattura, data_fattura, anno, mese, fornitore, p_iva_fornitore, categoria,
+            imponibile, cassa_previdenza_perc, cassa_previdenza_imp, totale_imponibile,
+            aliquota_iva, importo_iva, totale_lordo,
+            ritenuta_perc, ritenuta_importo, netto_a_pagare,
+            pagato_fornitore, ritenuta_versata, note
+        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,0,%s)
+        RETURNING id
+    """, (numero_fattura, data_fattura, anno, mese, fornitore, p_iva_fornitore, categoria,
+          imponibile, cassa_previdenza_perc, cassa_previdenza_imp, totale_imponibile,
+          aliquota_iva, importo_iva, totale_lordo,
+          ritenuta_perc, ritenuta_importo, netto_a_pagare, note)).fetchone()
+    conn.commit()
+    conn.close()
+    return jsonify({
+        'id': row['id'],
+        'cassa_previdenza_imp': cassa_previdenza_imp,
+        'totale_imponibile': totale_imponibile,
+        'importo_iva': importo_iva,
+        'totale_lordo': totale_lordo,
+        'ritenuta_importo': ritenuta_importo,
+        'netto_a_pagare': netto_a_pagare,
+    })
+
+
+@app.route("/fatture-passive/pagata-fornitore/<int:id>", methods=["POST"])
+@login_required
+def toggle_pagato_fornitore(id):
+    conn = get_connection()
+    row = conn.execute("SELECT pagato_fornitore FROM fatture_passive WHERE id = %s", (id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'not found'}), 404
+    nuovo = 0 if row['pagato_fornitore'] else 1
+    data_pag = datetime.date.today().isoformat() if nuovo else None
+    conn.execute("UPDATE fatture_passive SET pagato_fornitore = %s, data_pagamento_fornitore = %s WHERE id = %s",
+                 (nuovo, data_pag, id))
+    conn.commit()
+    conn.close()
+    return jsonify({'pagato_fornitore': nuovo, 'data': data_pag})
+
+
+@app.route("/fatture-passive/ritenuta-versata/<int:id>", methods=["POST"])
+@login_required
+def toggle_ritenuta_versata(id):
+    conn = get_connection()
+    row = conn.execute("SELECT ritenuta_versata FROM fatture_passive WHERE id = %s", (id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'not found'}), 404
+    nuovo = 0 if row['ritenuta_versata'] else 1
+    data_vers = datetime.date.today().isoformat() if nuovo else None
+    conn.execute("UPDATE fatture_passive SET ritenuta_versata = %s, data_versamento_ritenuta = %s WHERE id = %s",
+                 (nuovo, data_vers, id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ritenuta_versata': nuovo, 'data': data_vers})
+
+
+@app.route("/fatture-passive/elimina/<int:id>", methods=["POST"])
+@login_required
+def elimina_fattura_passiva(id):
+    conn = get_connection()
+    conn.execute("DELETE FROM fatture_passive WHERE id = %s", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
 @app.route("/costi-anno")
 @login_required
 def costi_anno():

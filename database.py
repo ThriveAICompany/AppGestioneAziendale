@@ -885,4 +885,33 @@ def _migrate(conn):
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fatture_passive (
+            id SERIAL PRIMARY KEY,
+            numero_fattura TEXT,
+            data_fattura TEXT NOT NULL,
+            anno INTEGER NOT NULL,
+            mese INTEGER NOT NULL,
+            fornitore TEXT NOT NULL,
+            p_iva_fornitore TEXT,
+            categoria TEXT NOT NULL DEFAULT 'consulenza',
+            imponibile REAL NOT NULL DEFAULT 0,
+            cassa_previdenza_perc REAL NOT NULL DEFAULT 0,
+            cassa_previdenza_imp REAL NOT NULL DEFAULT 0,
+            totale_imponibile REAL NOT NULL DEFAULT 0,
+            aliquota_iva REAL NOT NULL DEFAULT 22,
+            importo_iva REAL NOT NULL DEFAULT 0,
+            totale_lordo REAL NOT NULL DEFAULT 0,
+            ritenuta_perc REAL NOT NULL DEFAULT 20,
+            ritenuta_importo REAL NOT NULL DEFAULT 0,
+            netto_a_pagare REAL NOT NULL DEFAULT 0,
+            pagato_fornitore INTEGER NOT NULL DEFAULT 0,
+            data_pagamento_fornitore TEXT,
+            ritenuta_versata INTEGER NOT NULL DEFAULT 0,
+            data_versamento_ritenuta TEXT,
+            note TEXT,
+            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
     conn.commit()
