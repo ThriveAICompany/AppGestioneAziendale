@@ -3,8 +3,9 @@
 
 {% block content %}
 <style>
+/* ── KPI anno ── */
 .fissi-kpi-anno-row {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
   margin-bottom: 1.5rem;
 }
 .fissi-kpi-anno-card {
@@ -21,10 +22,10 @@
 .fissi-kpi-anno-sub {
   font-size: .75rem; color: var(--text-muted); margin-top: .25rem;
 }
-@media (max-width: 600px) {
-  .fissi-kpi-anno-row { grid-template-columns: 1fr; }
-}
+@media (max-width: 700px) { .fissi-kpi-anno-row { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 400px) { .fissi-kpi-anno-row { grid-template-columns: 1fr; } }
 
+/* ── Card accordion ── */
 .fissi-card {
   background: var(--surface); border-radius: var(--radius);
   box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
@@ -47,25 +48,55 @@
 .fissi-body { display: none; padding: 1rem 1.2rem 1.2rem; }
 .fissi-body.open { display: block; }
 
+/* ── Tabella ── */
 .fissi-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .5rem; }
 .fissi-table th {
   text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem;
   border-bottom: 2px solid var(--border);
 }
-.fissi-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); }
+.fissi-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); color: var(--text-muted); }
 .fissi-table tr:last-child td { border-bottom: none; }
+.fissi-table tr.pagata td { opacity: .55; }
+.fissi-table tr.scaduta td:first-child { color: var(--red); }
+
+/* ── Bottone pagata ── */
+.btn-pagata {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+  background: transparent; cursor: pointer; font-size: .75rem; font-weight: 700;
+  color: var(--text-muted); transition: all .15s;
+}
+.btn-pagata.on { background: var(--green); border-color: var(--green); color: #fff; }
+.btn-pagata:hover:not(.on) { border-color: var(--primary); color: var(--primary); }
+
+/* ── Form aggiunta costo inline ── */
+.form-fisso-inline {
+  display: none; margin-top: .75rem;
+  background: #f8fafa; border-radius: var(--radius-sm);
+  padding: .8rem 1rem; border: 1px solid var(--border);
+}
+.form-fisso-inline.open { display: block; }
+.form-rata-row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; }
+.form-rata-row .fg { display: flex; flex-direction: column; gap: .2rem; }
+.form-rata-row label { font-size: .72rem; font-weight: 600; color: var(--text-muted); }
+.form-rata-row input {
+  padding: .35rem .6rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: .85rem; width: 130px;
+  background: var(--surface); color: var(--text);
+}
+.form-rata-row input:focus { outline: none; border-color: var(--primary); }
 </style>
 
 <div class="page-header" style="margin-bottom:1.5rem">
   <div>
     <h1 class="page-title">Prossime Uscite Obbligatorie</h1>
     <p class="text-muted" style="font-size:.88rem;margin-top:.2rem">
-      Rate mutui e piani di rientro fiscali non ancora pagate — uscite certe dalla cassa.
+      Rate mutui e piani di rientro fiscali — uscite certe dalla cassa.
     </p>
   </div>
 </div>
 
+<!-- KPI Anno -->
 <div class="fissi-kpi-anno-row">
   <div class="fissi-kpi-anno-card">
     <div class="fissi-kpi-anno-label">Totale da pagare {{ anno }}</div>
@@ -73,77 +104,261 @@
     <div class="fissi-kpi-anno-sub">Uscita totale dalla cassa</div>
   </div>
   <div class="fissi-kpi-anno-card">
+    <div class="fissi-kpi-anno-label">Pagato {{ anno }}</div>
+    <div class="fissi-kpi-anno-val positivo">€ {{ kpi_anno_pagato|format_eur }}</div>
+    <div class="fissi-kpi-anno-sub">Già uscito dalla cassa</div>
+  </div>
+  <div class="fissi-kpi-anno-card">
+    <div class="fissi-kpi-anno-label">Residuo {{ anno }}</div>
+    <div class="fissi-kpi-anno-val negativo">€ {{ kpi_anno_residuo|format_eur }}</div>
+    <div class="fissi-kpi-anno-sub">Ancora da pagare</div>
+  </div>
+  <div class="fissi-kpi-anno-card">
     <div class="fissi-kpi-anno-label">Totale interessi {{ anno }}</div>
     <div class="fissi-kpi-anno-val">€ {{ kpi_anno_interessi|format_eur }}</div>
     <div class="fissi-kpi-anno-sub">Costo finanziario (P&amp;L)</div>
   </div>
-  <div class="fissi-kpi-anno-card">
-    <div class="fissi-kpi-anno-label">Solo capitale {{ anno }}</div>
-    <div class="fissi-kpi-anno-val">€ {{ kpi_anno_capitale|format_eur }}</div>
-    <div class="fissi-kpi-anno-sub">Rimborso quota capitale</div>
-  </div>
 </div>
 
-{% if uscite_per_mese %}
-  {% for mese in uscite_per_mese %}
-  <div class="fissi-card">
-    <div class="fissi-card-header" onclick="toggleFissi('fissi-body-{{ loop.index }}', 'fissi-chev-{{ loop.index }}')">
-      <div class="fissi-card-title">{{ mese.label }}</div>
-      <div class="fissi-kpi-row">
-        <div class="fissi-kpi">
-          <div class="fissi-kpi-label">Totale da pagare</div>
-          <div class="fissi-kpi-val negativo">€ {{ mese.tot_importo|format_eur }}</div>
+<!-- Accordion mensile -->
+{% for mese in uscite_per_mese %}
+<div class="fissi-card" id="card-{{ mese.chiave }}">
+  <div class="fissi-card-header" onclick="toggleFissi('fissi-body-{{ mese.chiave }}', 'fissi-chev-{{ mese.chiave }}')">
+    <div class="fissi-card-title">{{ mese.label }}</div>
+    <div class="fissi-kpi-row">
+      <div class="fissi-kpi">
+        <div class="fissi-kpi-label">Totale</div>
+        <div class="fissi-kpi-val negativo" id="kpi-ftot-{{ mese.chiave }}">€ {{ mese.tot_importo|format_eur }}</div>
+      </div>
+      <div class="fissi-kpi">
+        <div class="fissi-kpi-label">Pagato</div>
+        <div class="fissi-kpi-val positivo" id="kpi-fpag-{{ mese.chiave }}">€ {{ mese.tot_pagato|format_eur }}</div>
+      </div>
+      <div class="fissi-kpi">
+        <div class="fissi-kpi-label">Residuo</div>
+        <div class="fissi-kpi-val negativo" id="kpi-fres-{{ mese.chiave }}">€ {{ mese.residuo|format_eur }}</div>
+      </div>
+      <div class="fissi-kpi">
+        <div class="fissi-kpi-label">Interessi</div>
+        <div class="fissi-kpi-val" id="kpi-fint-{{ mese.chiave }}">€ {{ mese.tot_interessi|format_eur }}</div>
+      </div>
+      <span class="fissi-chevron" id="fissi-chev-{{ mese.chiave }}">▶</span>
+    </div>
+  </div>
+
+  <div class="fissi-body" id="fissi-body-{{ mese.chiave }}">
+
+    {% if mese.rate %}
+    <table class="fissi-table">
+      <thead>
+        <tr>
+          <th>Data scadenza</th>
+          <th>Obbligazione</th>
+          <th style="text-align:right">Uscita cassa</th>
+          <th style="text-align:right">Interessi (P&amp;L)</th>
+          <th style="text-align:right">Quota capitale</th>
+          <th style="text-align:center">Pagata</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody-{{ mese.chiave }}">
+        {% for u in mese.rate %}
+        <tr class="{% if u.pagato %}pagata{% elif u.data < today_str %}scaduta{% endif %}"
+            id="row-{{ u.tipo_tabella }}-{{ u.id }}">
+          <td>{{ u.data[8:10] }}/{{ u.data[5:7] }}/{{ u.data[0:4] }}</td>
+          <td>{{ u.nome }}</td>
+          <td class="cell-uscita" data-val="{{ u.importo }}" style="text-align:right">€ {{ u.importo|format_eur }}</td>
+          <td style="text-align:right">{% if u.quota_interessi > 0 %}€ {{ u.quota_interessi|format_eur }}{% else %}—{% endif %}</td>
+          <td style="text-align:right">{% if u.quota_capitale > 0 %}€ {{ u.quota_capitale|format_eur }}{% else %}—{% endif %}</td>
+          <td style="text-align:center">
+            <button class="btn-pagata {% if u.pagato %}on{% endif %}"
+                    onclick="togglePagataFissa('{{ u.tipo_tabella }}', {{ u.id }}, '{{ mese.chiave }}', this)"
+                    title="Segna pagata">✓</button>
+          </td>
+          <td>
+            {% if u.tipo_tabella == 'manuale' %}
+            <button class="btn-icon" style="opacity:.4;font-size:.75rem"
+                    onclick="eliminaFisso({{ u.id }}, '{{ mese.chiave }}', this)">✕</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:.5rem" id="empty-{{ mese.chiave }}">Nessun costo inserito.</p>
+    {% endif %}
+
+    <div style="margin-top:.75rem">
+      <button class="btn btn-secondary btn-sm" onclick="toggleFissiForm('form-fisso-{{ mese.chiave }}')">
+        + Aggiungi costo fisso
+      </button>
+    </div>
+
+    <div class="form-fisso-inline" id="form-fisso-{{ mese.chiave }}">
+      <div class="form-rata-row">
+        <div class="fg">
+          <label>Data *</label>
+          <input type="date" id="af-data-{{ mese.chiave }}"
+                 value="{{ anno }}-{{ '0' ~ mese.mese if mese.mese < 10 else mese.mese }}-01" />
         </div>
-        <div class="fissi-kpi">
-          <div class="fissi-kpi-label">Interessi totali</div>
-          <div class="fissi-kpi-val">€ {{ mese.tot_interessi|format_eur }}</div>
+        <div class="fg">
+          <label>Obbligazione *</label>
+          <input type="text" id="af-obblig-{{ mese.chiave }}" placeholder="Es. Rata mutuo" style="width:180px" />
         </div>
-        <div class="fissi-kpi">
-          <div class="fissi-kpi-label">Solo capitale</div>
-          <div class="fissi-kpi-val">€ {{ mese.tot_capitale|format_eur }}</div>
+        <div class="fg">
+          <label>Uscita cassa (€) *</label>
+          <input type="number" id="af-uscita-{{ mese.chiave }}" step="0.01" min="0" placeholder="0.00" />
         </div>
-        <span class="fissi-chevron" id="fissi-chev-{{ loop.index }}">▶</span>
+        <div class="fg">
+          <label>Interessi (€)</label>
+          <input type="number" id="af-int-{{ mese.chiave }}" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div class="fg">
+          <label>Quota capitale (€)</label>
+          <input type="number" id="af-cap-{{ mese.chiave }}" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <button class="btn btn-primary btn-sm" style="align-self:flex-end"
+                onclick="salvaFisso('{{ mese.chiave }}')">Aggiungi</button>
+        <button class="btn btn-secondary btn-sm" style="align-self:flex-end"
+                onclick="toggleFissiForm('form-fisso-{{ mese.chiave }}')">Annulla</button>
       </div>
     </div>
 
-    <div class="fissi-body" id="fissi-body-{{ loop.index }}">
-      <table class="fissi-table">
-        <thead>
-          <tr>
-            <th>Data scadenza</th>
-            <th>Obbligazione</th>
-            <th style="text-align:right">Uscita cassa</th>
-            <th style="text-align:right">di cui interessi (P&amp;L)</th>
-            <th style="text-align:right">Quota capitale</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in mese.rate %}
-          <tr>
-            <td>{{ u.data[8:10] }}/{{ u.data[5:7] }}/{{ u.data[0:4] }}</td>
-            <td>{{ u.nome }}</td>
-            <td style="text-align:right">€ {{ u.importo|format_eur }}</td>
-            <td style="text-align:right;color:var(--text-muted)">
-              {% if u.quota_interessi > 0 %}€ {{ u.quota_interessi|format_eur }}{% else %}—{% endif %}
-            </td>
-            <td style="text-align:right;color:var(--text-muted)">€ {{ (u.importo - u.quota_interessi)|format_eur }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
   </div>
-  {% endfor %}
-{% else %}
-  <div class="card" style="text-align:center;padding:2rem;color:var(--text-muted)">
-    Nessuna uscita obbligatoria nei prossimi mesi.
-  </div>
-{% endif %}
+</div>
+{% endfor %}
 
 <script>
 function toggleFissi(bodyId, chevId) {
   document.getElementById(bodyId).classList.toggle('open');
   document.getElementById(chevId).classList.toggle('open');
+}
+
+function toggleFissiForm(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+function fmtEur(n) {
+  return n.toLocaleString('it-IT', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+}
+
+async function salvaFisso(chiave) {
+  const dataVal = document.getElementById('af-data-' + chiave).value;
+  const obblig  = document.getElementById('af-obblig-' + chiave).value.trim();
+  const uscita  = parseFloat(document.getElementById('af-uscita-' + chiave).value) || 0;
+  const intVal  = parseFloat(document.getElementById('af-int-' + chiave).value) || 0;
+  const cap     = parseFloat(document.getElementById('af-cap-' + chiave).value) || 0;
+
+  if (!dataVal) { alert('Inserisci una data.'); return; }
+  if (!obblig)  { alert('Inserisci l\'obbligazione.'); return; }
+  if (uscita <= 0) { alert('Inserisci un importo uscita cassa maggiore di zero.'); return; }
+
+  const res = await fetch('/costi-fissi/aggiungi', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({data: dataVal, obbligazione: obblig, uscita_cassa: uscita, interessi: intVal, quota_capitale: cap})
+  });
+  const data = await res.json();
+  if (data.error) { alert('Errore: ' + data.error); return; }
+
+  toggleFissiForm('form-fisso-' + chiave);
+
+  // Crea o recupera tbody
+  let tbody = document.getElementById('tbody-' + chiave);
+  if (!tbody) {
+    const empty = document.getElementById('empty-' + chiave);
+    if (empty) empty.remove();
+    const body = document.getElementById('fissi-body-' + chiave);
+    const addBtn = body.querySelector('[style*="margin-top"]');
+    const table = document.createElement('table');
+    table.className = 'fissi-table';
+    table.innerHTML = `<thead><tr>
+      <th>Data scadenza</th><th>Obbligazione</th>
+      <th style="text-align:right">Uscita cassa</th>
+      <th style="text-align:right">Interessi (P&L)</th>
+      <th style="text-align:right">Quota capitale</th>
+      <th style="text-align:center">Pagata</th>
+      <th></th>
+    </tr></thead><tbody id="tbody-${chiave}"></tbody>`;
+    body.insertBefore(table, addBtn);
+    tbody = document.getElementById('tbody-' + chiave);
+  }
+
+  const d = dataVal;
+  const dataFmt = d.substring(8,10) + '/' + d.substring(5,7) + '/' + d.substring(0,4);
+  const tr = document.createElement('tr');
+  tr.id = 'row-manuale-' + data.id;
+  tr.innerHTML = `
+    <td>${dataFmt}</td>
+    <td>${obblig}</td>
+    <td class="cell-uscita" data-val="${uscita}" style="text-align:right">€ ${fmtEur(uscita)}</td>
+    <td style="text-align:right">${intVal > 0 ? '€ ' + fmtEur(intVal) : '—'}</td>
+    <td style="text-align:right">${cap > 0 ? '€ ' + fmtEur(cap) : '—'}</td>
+    <td style="text-align:center">
+      <button class="btn-pagata"
+              onclick="togglePagataFissa('manuale',${data.id},'${chiave}',this)"
+              title="Segna pagata">✓</button>
+    </td>
+    <td>
+      <button class="btn-icon" style="opacity:.4;font-size:.75rem"
+              onclick="eliminaFisso(${data.id},'${chiave}',this)">✕</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+
+  // Azzera campi
+  document.getElementById('af-obblig-' + chiave).value = '';
+  document.getElementById('af-uscita-' + chiave).value = '';
+  document.getElementById('af-int-' + chiave).value = '';
+  document.getElementById('af-cap-' + chiave).value = '';
+
+  aggiornaKpiFisso(chiave, uscita, intVal, 0);
+}
+
+async function togglePagataFissa(tipo, id, chiave, btn) {
+  btn.disabled = true;
+  const res = await fetch('/costi-fissi/pagato/' + tipo + '/' + id, {method: 'POST'});
+  const data = await res.json();
+  btn.disabled = false;
+  if (data.error) { alert('Errore'); return; }
+
+  btn.classList.toggle('on', !!data.pagato);
+  const row = document.getElementById('row-' + tipo + '-' + id);
+  if (row) row.className = data.pagato ? 'pagata' : '';
+
+  const uscita = parseFloat(row.querySelector('.cell-uscita').dataset.val) || 0;
+  const delta = data.pagato ? uscita : -uscita;
+  aggiornaKpiFisso(chiave, 0, 0, delta);
+}
+
+async function eliminaFisso(id, chiave, btn) {
+  if (!confirm('Eliminare questo costo?')) return;
+  const row = document.getElementById('row-manuale-' + id);
+  const uscita = parseFloat(row.querySelector('.cell-uscita').dataset.val) || 0;
+  const isPagata = row.querySelector('.btn-pagata').classList.contains('on');
+
+  const res = await fetch('/costi-fissi/elimina/' + id, {method: 'POST'});
+  const data = await res.json();
+  if (!data.ok) { alert('Errore eliminazione'); return; }
+
+  row.remove();
+  aggiornaKpiFisso(chiave, -uscita, 0, isPagata ? -uscita : 0);
+}
+
+function aggiornaKpiFisso(chiave, deltaUscita, deltaInt, deltaPagato) {
+  function parseVal(id) {
+    const s = document.getElementById(id).textContent.replace(/[€\s]/g,'').replace('.','').replace(',','.');
+    return parseFloat(s) || 0;
+  }
+  const tot = Math.max(0, parseVal('kpi-ftot-' + chiave) + deltaUscita);
+  const pag = Math.max(0, parseVal('kpi-fpag-' + chiave) + deltaPagato);
+  const res = Math.max(0, tot - pag);
+  const intv = Math.max(0, parseVal('kpi-fint-' + chiave) + deltaInt);
+  document.getElementById('kpi-ftot-' + chiave).textContent = '€ ' + fmtEur(tot);
+  document.getElementById('kpi-fpag-' + chiave).textContent = '€ ' + fmtEur(pag);
+  document.getElementById('kpi-fres-' + chiave).textContent = '€ ' + fmtEur(res);
+  document.getElementById('kpi-fint-' + chiave).textContent = '€ ' + fmtEur(intv);
 }
 </script>
 {% endblock %}

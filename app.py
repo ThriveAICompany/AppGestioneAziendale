@@ -1643,68 +1643,112 @@ def costi_fissi():
     conn = get_connection()
     c    = conn.cursor()
     today    = datetime.date.today()
-    anno_str = str(today.year)
+    anno     = today.year
+    anno_str = str(anno)
 
-    rate_fin_upco = c.execute("""
-        SELECT f.nome, 'mutuo' as tipo, rf.data_scadenza,
-               rf.rata_totale as importo, rf.quota_interessi
+    MESI_IT = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+               'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+
+    rate_fin = c.execute("""
+        SELECT rf.id, f.nome, 'mutuo' as tipo, rf.data_scadenza,
+               rf.rata_totale as importo, rf.quota_interessi,
+               rf.quota_capitale, rf.pagato
         FROM rate_finanziamento rf
         JOIN finanziamenti f ON rf.finanziamento_id = f.id
         WHERE LEFT(rf.data_scadenza, 4) = %s
         ORDER BY rf.data_scadenza
     """, (anno_str,)).fetchall()
 
-    rate_pr_upco = c.execute("""
-        SELECT pr.nome, pr.tipo, rpr.data_scadenza,
-               rpr.importo, rpr.quota_interessi
+    rate_pr = c.execute("""
+        SELECT rpr.id, pr.nome, pr.tipo, rpr.data_scadenza,
+               rpr.importo, rpr.quota_interessi, rpr.pagato
         FROM rate_piano_rientro rpr
         JOIN piani_rientro pr ON rpr.piano_rientro_id = pr.id
         WHERE LEFT(rpr.data_scadenza, 4) = %s
         ORDER BY rpr.data_scadenza
     """, (anno_str,)).fetchall()
 
+    rate_man = c.execute("""
+        SELECT id, obbligazione, data, uscita_cassa, interessi, quota_capitale, pagato
+        FROM costi_fissi_manuali
+        WHERE anno = %s
+        ORDER BY data
+    """, (anno,)).fetchall()
+
     prossime_uscite = []
-    for r in list(rate_fin_upco) + list(rate_pr_upco):
-        try:
-            data_d = datetime.date.fromisoformat(r['data_scadenza'])
-        except Exception:
-            continue
-        giorni = (data_d - today).days
+    for r in list(rate_fin):
         prossime_uscite.append({
+            'id': r['id'],
+            'tipo_tabella': 'finanziamento',
             'nome': r['nome'],
-            'tipo': r['tipo'],
             'data': r['data_scadenza'],
             'importo': float(r['importo']),
             'quota_interessi': float(r['quota_interessi'] or 0),
-            'giorni': giorni,
+            'quota_capitale': float(r['quota_capitale'] or 0),
+            'pagato': bool(r['pagato']),
         })
+    for r in list(rate_pr):
+        importo = float(r['importo'])
+        qi = float(r['quota_interessi'] or 0)
+        prossime_uscite.append({
+            'id': r['id'],
+            'tipo_tabella': 'piano_rientro',
+            'nome': r['nome'],
+            'data': r['data_scadenza'],
+            'importo': importo,
+            'quota_interessi': qi,
+            'quota_capitale': importo - qi,
+            'pagato': bool(r['pagato']),
+        })
+    for r in list(rate_man):
+        prossime_uscite.append({
+            'id': r['id'],
+            'tipo_tabella': 'manuale',
+            'nome': r['obbligazione'],
+            'data': r['data'],
+            'importo': float(r['uscita_cassa']),
+            'quota_interessi': float(r['interessi'] or 0),
+            'quota_capitale': float(r['quota_capitale'] or 0),
+            'pagato': bool(r['pagato']),
+        })
+
     prossime_uscite.sort(key=lambda x: x['data'])
 
-    # Raggruppa per mese (es. "2026-03")
-    from collections import OrderedDict
-    mesi_dict = OrderedDict()
-    MESI_IT = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-               'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+    # Inizializza tutti i 12 mesi
+    mesi_dict = {}
+    for m in range(1, 13):
+        chiave = f"{anno}-{m:02d}"
+        mesi_dict[chiave] = {
+            'chiave': chiave,
+            'mese': m,
+            'anno': anno,
+            'label': f"{MESI_IT[m]} {anno}",
+            'rate': [],
+            'tot_importo': 0.0,
+            'tot_pagato': 0.0,
+            'tot_interessi': 0.0,
+            'tot_capitale': 0.0,
+        }
+
     for u in prossime_uscite:
-        chiave = u['data'][:7]  # "YYYY-MM"
+        chiave = u['data'][:7]
         if chiave not in mesi_dict:
-            anno, mese = int(chiave[:4]), int(chiave[5:7])
-            mesi_dict[chiave] = {
-                'chiave': chiave,
-                'label': f"{MESI_IT[mese]} {anno}",
-                'rate': [],
-                'tot_importo': 0.0,
-                'tot_interessi': 0.0,
-                'tot_capitale': 0.0,
-            }
+            continue
         mesi_dict[chiave]['rate'].append(u)
         mesi_dict[chiave]['tot_importo']   += u['importo']
         mesi_dict[chiave]['tot_interessi'] += u['quota_interessi']
-        mesi_dict[chiave]['tot_capitale']  += u['importo'] - u['quota_interessi']
+        mesi_dict[chiave]['tot_capitale']  += u['quota_capitale']
+        if u['pagato']:
+            mesi_dict[chiave]['tot_pagato'] += u['importo']
+
+    for m in mesi_dict.values():
+        m['residuo'] = m['tot_importo'] - m['tot_pagato']
 
     uscite_per_mese = list(mesi_dict.values())
 
     kpi_anno_importo   = sum(m['tot_importo']   for m in uscite_per_mese)
+    kpi_anno_pagato    = sum(m['tot_pagato']    for m in uscite_per_mese)
+    kpi_anno_residuo   = kpi_anno_importo - kpi_anno_pagato
     kpi_anno_interessi = sum(m['tot_interessi'] for m in uscite_per_mese)
     kpi_anno_capitale  = sum(m['tot_capitale']  for m in uscite_per_mese)
 
@@ -1713,10 +1757,81 @@ def costi_fissi():
     return render_template("costi_fissi.html",
                            uscite_per_mese=uscite_per_mese,
                            kpi_anno_importo=kpi_anno_importo,
+                           kpi_anno_pagato=kpi_anno_pagato,
+                           kpi_anno_residuo=kpi_anno_residuo,
                            kpi_anno_interessi=kpi_anno_interessi,
                            kpi_anno_capitale=kpi_anno_capitale,
                            anno=anno_str,
-                           today=today.isoformat())
+                           today_str=today.isoformat())
+
+
+@app.route("/costi-fissi/aggiungi", methods=["POST"])
+@login_required
+def aggiungi_costo_fisso():
+    data = request.get_json()
+    data_val     = data.get('data', '').strip()
+    obbligazione = data.get('obbligazione', '').strip()
+    uscita_cassa = float(data.get('uscita_cassa', 0))
+    interessi    = float(data.get('interessi', 0))
+    quota_capitale = float(data.get('quota_capitale', 0))
+
+    if not data_val or not obbligazione:
+        return jsonify({'error': 'Campi obbligatori mancanti'}), 400
+
+    try:
+        d = datetime.date.fromisoformat(data_val)
+    except ValueError:
+        return jsonify({'error': 'Data non valida'}), 400
+
+    conn = get_connection()
+    row = conn.execute("""
+        INSERT INTO costi_fissi_manuali
+            (anno, mese, obbligazione, data, uscita_cassa, interessi, quota_capitale, pagato)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 0)
+        RETURNING id
+    """, (d.year, d.month, obbligazione, data_val, uscita_cassa, interessi, quota_capitale)).fetchone()
+    conn.commit()
+    conn.close()
+    return jsonify({'id': row['id']})
+
+
+@app.route("/costi-fissi/pagato/<tipo>/<int:id>", methods=["POST"])
+@login_required
+def toggle_pagato_costo_fisso(tipo, id):
+    conn = get_connection()
+    if tipo == 'finanziamento':
+        row = conn.execute("SELECT pagato FROM rate_finanziamento WHERE id = %s", (id,)).fetchone()
+        if not row:
+            conn.close(); return jsonify({'error': 'not found'}), 404
+        nuovo = 0 if row['pagato'] else 1
+        conn.execute("UPDATE rate_finanziamento SET pagato = %s WHERE id = %s", (nuovo, id))
+    elif tipo == 'piano_rientro':
+        row = conn.execute("SELECT pagato FROM rate_piano_rientro WHERE id = %s", (id,)).fetchone()
+        if not row:
+            conn.close(); return jsonify({'error': 'not found'}), 404
+        nuovo = 0 if row['pagato'] else 1
+        conn.execute("UPDATE rate_piano_rientro SET pagato = %s WHERE id = %s", (nuovo, id))
+    elif tipo == 'manuale':
+        row = conn.execute("SELECT pagato FROM costi_fissi_manuali WHERE id = %s", (id,)).fetchone()
+        if not row:
+            conn.close(); return jsonify({'error': 'not found'}), 404
+        nuovo = 0 if row['pagato'] else 1
+        conn.execute("UPDATE costi_fissi_manuali SET pagato = %s WHERE id = %s", (nuovo, id))
+    else:
+        conn.close(); return jsonify({'error': 'tipo non valido'}), 400
+    conn.commit()
+    conn.close()
+    return jsonify({'pagato': nuovo})
+
+
+@app.route("/costi-fissi/elimina/<int:id>", methods=["POST"])
+@login_required
+def elimina_costo_fisso(id):
+    conn = get_connection()
+    conn.execute("DELETE FROM costi_fissi_manuali WHERE id = %s", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 
 @app.route("/costi-variabili")
