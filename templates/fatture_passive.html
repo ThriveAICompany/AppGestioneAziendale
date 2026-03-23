@@ -18,7 +18,7 @@
 }
 .fp-kpi-anno-val { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
 .fp-kpi-anno-sub { font-size: .75rem; color: var(--text-muted); margin-top: .25rem; }
-.fp-kpi-anno-val.alert { color: var(--red); }
+.fp-kpi-anno-val.val-red { color: var(--red); }
 
 @media (max-width: 700px) { .fp-kpi-anno-row { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 400px) { .fp-kpi-anno-row { grid-template-columns: 1fr; } }
@@ -139,7 +139,7 @@
   </div>
   <div class="fp-kpi-anno-card">
     <div class="fp-kpi-anno-label">Ritenute da versare</div>
-    <div class="fp-kpi-anno-val {% if kpi_ritenute_pendenti > 0 %}alert{% endif %}">€ {{ kpi_ritenute_pendenti|format_eur }}</div>
+    <div class="fp-kpi-anno-val {% if kpi_ritenute_pendenti > 0 %}val-red{% endif %}">€ {{ kpi_ritenute_pendenti|format_eur }}</div>
     <div class="fp-kpi-anno-sub">F24 entro il 16 del mese dopo</div>
   </div>
   <div class="fp-kpi-anno-card">
@@ -165,7 +165,7 @@
       </div>
       <div class="fp-kpi">
         <div class="fp-kpi-label">Ritenute pend.</div>
-        <div class="fp-kpi-val {% if mese.tot_ritenute > 0 %}alert{% else %}{% endif %}" style="{% if mese.tot_ritenute > 0 %}color:var(--red){% endif %}">€ {{ mese.tot_ritenute|format_eur }}</div>
+        <div class="fp-kpi-val" style="{% if mese.tot_ritenute > 0 %}color:var(--red){% endif %}">€ {{ mese.tot_ritenute|format_eur }}</div>
       </div>
       <div class="fp-kpi">
         <div class="fp-kpi-label">Netto a pagare</div>
