@@ -198,6 +198,9 @@ const labels  = {{ chart_labels | safe }};
 const ricavi  = {{ chart_ricavi | safe }};
 const uscite  = {{ chart_uscite | safe }};
 const delta   = {{ chart_delta  | safe }};
+const dcFissi = {{ breakdown_costi_fissi | safe }};
+const dcVar   = {{ breakdown_costi_variabili | safe }};
+const dcFp    = {{ breakdown_fatture_passive | safe }};
 
 // Chart
 const ctx = document.getElementById('chartProiezioni').getContext('2d');
@@ -215,13 +218,37 @@ new Chart(ctx, {
         borderRadius: 4,
       },
       {
-        label: 'Uscite',
+        label: 'Uscite proiettate',
         data: uscite,
         backgroundColor: 'rgba(224,82,82,.7)',
         borderColor: '#e05252',
         borderWidth: 1.5,
         borderRadius: 4,
-      }
+      },
+      {
+        label: 'Costi fissi',
+        data: dcFissi,
+        backgroundColor: 'rgba(201,124,42,.7)',
+        borderColor: '#c97c2a',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Costi variabili',
+        data: dcVar,
+        backgroundColor: 'rgba(74,138,191,.7)',
+        borderColor: '#4a8abf',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Fatture passive',
+        data: dcFp,
+        backgroundColor: 'rgba(124,92,191,.7)',
+        borderColor: '#7c5cbf',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
     ]
   },
   options: {
@@ -266,16 +293,15 @@ tbody.insertBefore(firstTd, tbody.firstChild);
 
 
 // ── BREAKDOWN USCITE ─────────────────────────────────────────────────────────
-const bkUscite       = {{ breakdown_uscite | safe }};
-const bkFinanziamenti = {{ breakdown_finanziamenti | safe }};
-const bkPianiRientro  = {{ breakdown_piani_rientro | safe }};
-const bkFornitori    = {{ breakdown_fornitori | safe }};
+const bkUscite    = {{ breakdown_uscite | safe }};
+const bkFornitori = {{ breakdown_fornitori | safe }};
 
 const categorie = [
-  { label: 'Uscite manuali',          data: bkUscite,       color: '#e05252' },
-  { label: 'Finanziamenti',           data: bkFinanziamenti, color: '#c97c2a' },
-  { label: 'Piani di rientro fiscali', data: bkPianiRientro, color: '#7c5cbf' },
-  { label: 'Quota fornitori/partner', data: bkFornitori,    color: '#4a8abf' },
+  { label: 'Uscite proiettate',       data: bkUscite,    color: '#e05252' },
+  { label: 'Quota fornitori/partner', data: bkFornitori, color: '#4a8abf' },
+  { label: 'Costi fissi',             data: dcFissi,     color: '#c97c2a' },
+  { label: 'Costi variabili',         data: dcVar,       color: '#16a34a' },
+  { label: 'Fatture passive',         data: dcFp,        color: '#7c5cbf' },
 ];
 
 const fmt = v => v === 0

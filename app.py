@@ -4050,22 +4050,56 @@ def proiezioni():
     for r in rate_pr_rows:
         piani_rientro_per_mese[r['mese']] += float(r['totale'])
 
+    # Dashboard Costi fissi per mese: fin + piani rientro + manuali
+    dc_fissi_per_mese = [finanziamenti_per_mese[m] + piani_rientro_per_mese[m] for m in range(13)]
+    fissi_man_rows = conn.execute("""
+        SELECT CAST(EXTRACT(MONTH FROM data::date) AS INTEGER) as mese,
+               SUM(uscita_cassa) as totale
+        FROM costi_fissi_manuali
+        WHERE anno = %s
+        GROUP BY mese
+    """, (anno,)).fetchall()
+    for r in fissi_man_rows:
+        dc_fissi_per_mese[int(r['mese'])] += float(r['totale'] or 0)
+
+    # Dashboard Costi variabili per mese
+    dc_var_per_mese = [0.0] * 13
+    dc_var_rows = conn.execute("""
+        SELECT mese, SUM(uscita_cassa) as totale
+        FROM costi_variabili
+        WHERE anno = %s
+        GROUP BY mese
+    """, (anno,)).fetchall()
+    for r in dc_var_rows:
+        dc_var_per_mese[r['mese']] += float(r['totale'] or 0)
+
+    # Dashboard Fatture passive per mese
+    dc_fp_per_mese = [0.0] * 13
+    dc_fp_rows = conn.execute("""
+        SELECT mese, SUM(netto_a_pagare) as totale
+        FROM fatture_passive
+        WHERE anno = %s
+        GROUP BY mese
+    """, (anno,)).fetchall()
+    for r in dc_fp_rows:
+        dc_fp_per_mese[r['mese']] += float(r['totale'] or 0)
+
     oggi = datetime.date.today()
-    # Costi totali = uscite proiettate + quota fornitore da ricavi + rate finanziamenti/piani rientro
-    costi_totali = [round(
-        uscite_per_mese[m] + fornitori_per_mese[m] + finanziamenti_per_mese[m] + piani_rientro_per_mese[m], 2
-    ) for m in range(13)]
 
     chart_labels = json.dumps([MESI_IT[m] for m in range(1, 13)])
     chart_ricavi = json.dumps([round(ricavi_per_mese[m], 2) for m in range(1, 13)])
-    chart_uscite = json.dumps([costi_totali[m] for m in range(1, 13)])
-    chart_delta  = json.dumps([round(ricavi_per_mese[m] - costi_totali[m], 2) for m in range(1, 13)])
+    chart_uscite = json.dumps([round(uscite_per_mese[m] + fornitori_per_mese[m], 2) for m in range(1, 13)])
+    chart_delta  = json.dumps([round(
+        ricavi_per_mese[m] - uscite_per_mese[m] - fornitori_per_mese[m]
+        - dc_fissi_per_mese[m] - dc_var_per_mese[m] - dc_fp_per_mese[m], 2
+    ) for m in range(1, 13)])
 
     # Dettaglio uscite per categoria (JSON per la sezione breakdown)
-    breakdown_uscite       = json.dumps([round(uscite_per_mese[m], 2) for m in range(1, 13)])
-    breakdown_finanziamenti = json.dumps([round(finanziamenti_per_mese[m], 2) for m in range(1, 13)])
-    breakdown_piani_rientro = json.dumps([round(piani_rientro_per_mese[m], 2) for m in range(1, 13)])
-    breakdown_fornitori    = json.dumps([round(fornitori_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_uscite          = json.dumps([round(uscite_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_fornitori       = json.dumps([round(fornitori_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_costi_fissi     = json.dumps([round(dc_fissi_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_costi_variabili = json.dumps([round(dc_var_per_mese[m], 2) for m in range(1, 13)])
+    breakdown_fatture_passive = json.dumps([round(dc_fp_per_mese[m], 2) for m in range(1, 13)])
 
     conn.close()
     return render_template("proiezioni.html",
@@ -4078,9 +4112,10 @@ def proiezioni():
         chart_uscite=chart_uscite,
         chart_delta=chart_delta,
         breakdown_uscite=breakdown_uscite,
-        breakdown_finanziamenti=breakdown_finanziamenti,
-        breakdown_piani_rientro=breakdown_piani_rientro,
         breakdown_fornitori=breakdown_fornitori,
+        breakdown_costi_fissi=breakdown_costi_fissi,
+        breakdown_costi_variabili=breakdown_costi_variabili,
+        breakdown_fatture_passive=breakdown_fatture_passive,
     )
 
 
