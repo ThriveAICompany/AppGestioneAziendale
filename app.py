@@ -4053,8 +4053,7 @@ def proiezioni():
     # Dashboard Costi fissi per mese: fin + piani rientro + manuali
     dc_fissi_per_mese = [finanziamenti_per_mese[m] + piani_rientro_per_mese[m] for m in range(13)]
     fissi_man_rows = conn.execute("""
-        SELECT CAST(EXTRACT(MONTH FROM data::date) AS INTEGER) as mese,
-               SUM(uscita_cassa) as totale
+        SELECT mese, SUM(uscita_cassa) as totale
         FROM costi_fissi_manuali
         WHERE anno = %s
         GROUP BY mese
