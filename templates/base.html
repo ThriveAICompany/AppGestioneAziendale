@@ -39,7 +39,7 @@
         </li>
 
         <li class="nav-group">
-          <div class="sidebar-item nav-parent {% if request.endpoint in ['costi_anno', 'costi_fissi', 'costi_variabili', 'aggiungi_costo_variabile', 'toggle_pagato_costo_variabile', 'elimina_costo_variabile', 'finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro','fatture_passive','aggiungi_fattura_passiva','toggle_pagato_fornitore','toggle_ritenuta_versata','elimina_fattura_passiva'] %}active{% endif %}"
+          <div class="sidebar-item nav-parent {% if request.endpoint in ['dashboard_costi', 'costi_anno', 'costi_fissi', 'costi_variabili', 'aggiungi_costo_variabile', 'toggle_pagato_costo_variabile', 'elimina_costo_variabile', 'finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro','fatture_passive','aggiungi_fattura_passiva','toggle_pagato_fornitore','toggle_ritenuta_versata','elimina_fattura_passiva'] %}active{% endif %}"
                data-label="Costi"
                onclick="toggleCostiMenu()">
             <i data-lucide="table-2" class="sidebar-icon"></i>
@@ -49,6 +49,14 @@
             </svg>
           </div>
           <ul class="nav-submenu" id="costiSubmenu">
+            <li>
+              <a href="{{ url_for('dashboard_costi') }}"
+                 class="sidebar-item nav-subitem {% if request.endpoint == 'dashboard_costi' %}active{% endif %}"
+                 data-label="Dashboard Costi">
+                <span class="nav-subitem-dot"></span>
+                <span class="sidebar-label">Dashboard Costi</span>
+              </a>
+            </li>
             <li>
               <a href="{{ url_for('costi_fissi') }}"
                  class="sidebar-item nav-subitem {% if request.endpoint == 'costi_fissi' %}active{% endif %}"
@@ -66,19 +74,19 @@
               </a>
             </li>
             <li>
-              <a href="{{ url_for('finanziamenti') }}"
-                 class="sidebar-item nav-subitem {% if request.endpoint in ['finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
-                 data-label="Debiti">
-                <span class="nav-subitem-dot"></span>
-                <span class="sidebar-label">Debiti</span>
-              </a>
-            </li>
-            <li>
               <a href="{{ url_for('fatture_passive') }}"
                  class="sidebar-item nav-subitem {% if request.endpoint in ['fatture_passive','aggiungi_fattura_passiva','toggle_pagato_fornitore','toggle_ritenuta_versata','elimina_fattura_passiva'] %}active{% endif %}"
                  data-label="Fatture Passive">
                 <span class="nav-subitem-dot"></span>
                 <span class="sidebar-label">Fatture Passive</span>
+              </a>
+            </li>
+            <li>
+              <a href="{{ url_for('finanziamenti') }}"
+                 class="sidebar-item nav-subitem {% if request.endpoint in ['finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro'] %}active{% endif %}"
+                 data-label="Debiti">
+                <span class="nav-subitem-dot"></span>
+                <span class="sidebar-label">Debiti</span>
               </a>
             </li>
           </ul>
@@ -190,7 +198,7 @@
     }
 
     // Auto-open submenu if child page is active or was left open
-    const costiChildActive = {{ 'true' if request.endpoint in ['costi_fissi','costi_variabili','finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro','fatture_passive','aggiungi_fattura_passiva','toggle_pagato_fornitore','toggle_ritenuta_versata','elimina_fattura_passiva'] else 'false' }};
+    const costiChildActive = {{ 'true' if request.endpoint in ['dashboard_costi','costi_fissi','costi_variabili','finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro','fatture_passive','aggiungi_fattura_passiva','toggle_pagato_fornitore','toggle_ritenuta_versata','elimina_fattura_passiva'] else 'false' }};
     if ((costiChildActive || localStorage.getItem('costiMenuOpen') === 'true') && !sidebar.classList.contains('sidebar-collapsed')) {
       document.getElementById('costiSubmenu').classList.add('open');
       document.getElementById('costiChevron').classList.add('open');

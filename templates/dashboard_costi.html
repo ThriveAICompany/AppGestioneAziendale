@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Costi{% endblock %}
+
+{% block content %}
+<style>
+/* ── KPI ── */
+.dc-kpi-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.dc-kpi-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.2rem 1.4rem;
+}
+.dc-kpi-label {
+  font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem;
+}
+.dc-kpi-val {
+  font-size: 1.5rem; font-weight: 700; line-height: 1.1;
+}
+@media (max-width: 700px) { .dc-kpi-row { grid-template-columns: 1fr; } }
+
+/* ── Tabella ── */
+.dc-table-wrap {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow-x: auto;
+}
+.dc-table {
+  width: 100%; border-collapse: collapse; font-size: .875rem;
+}
+.dc-table th {
+  background: var(--surface); padding: .75rem 1rem;
+  font-size: .7rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+.dc-table td {
+  padding: .75rem 1rem; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.dc-table tbody tr:last-child td { border-bottom: none; }
+.dc-table tbody tr:hover { background: var(--surface-hover, #f8fafa); }
+
+.dc-table .col-mese { font-weight: 600; min-width: 90px; }
+.dc-table .col-num  { text-align: right; }
+.dc-table .col-tot  { text-align: right; font-weight: 700; }
+
+.dc-sub { font-size: .72rem; color: var(--text-muted); margin-top: .15rem; }
+
+/* Riga totale */
+.dc-table tfoot td {
+  padding: .85rem 1rem; font-weight: 700; font-size: .9rem;
+  border-top: 2px solid var(--border); background: var(--surface);
+}
+.dc-table tfoot .col-num,
+.dc-table tfoot .col-tot { text-align: right; }
+
+/* Stato colore residuo */
+.val-ok   { color: #16a34a; }
+.val-warn { color: #d97706; }
+.val-bad  { color: #dc2626; }
+
+/* Separatore sezioni header */
+.dc-table .th-group {
+  text-align: center; border-bottom: 2px solid var(--border);
+  padding: .4rem .5rem; font-size: .68rem;
+}
+</style>
+
+<div class="page-header" style="margin-bottom:1.5rem">
+  <div>
+    <h1 class="page-title">Dashboard Costi {{ anno }}</h1>
+    <p class="page-subtitle">Riepilogo mensile di tutti i costi aziendali</p>
+  </div>
+</div>
+
+<!-- KPI -->
+<div class="dc-kpi-row">
+  <div class="dc-kpi-card">
+    <div class="dc-kpi-label">Totale anno</div>
+    <div class="dc-kpi-val">€ {{ "%.2f"|format(kpi_tot) }}</div>
+  </div>
+  <div class="dc-kpi-card">
+    <div class="dc-kpi-label">Già pagato</div>
+    <div class="dc-kpi-val val-ok">€ {{ "%.2f"|format(kpi_pag) }}</div>
+  </div>
+  <div class="dc-kpi-card">
+    <div class="dc-kpi-label">Da pagare</div>
+    <div class="dc-kpi-val {% if kpi_res > 0 %}val-bad{% else %}val-ok{% endif %}">€ {{ "%.2f"|format(kpi_res) }}</div>
+  </div>
+</div>
+
+<!-- Tabella mensile -->
+<div class="dc-table-wrap">
+  <table class="dc-table">
+    <thead>
+      <tr>
+        <th rowspan="2" class="col-mese" style="vertical-align:bottom">Mese</th>
+        <th colspan="2" class="th-group">Costi Fissi</th>
+        <th colspan="2" class="th-group">Costi Variabili</th>
+        <th colspan="2" class="th-group">Fatture Passive</th>
+        <th colspan="3" class="th-group" style="color:var(--primary)">Totale</th>
+      </tr>
+      <tr>
+        <th class="col-num">Importo</th>
+        <th class="col-num">Residuo</th>
+        <th class="col-num">Importo</th>
+        <th class="col-num">Residuo</th>
+        <th class="col-num">Importo</th>
+        <th class="col-num">Residuo</th>
+        <th class="col-num">Importo</th>
+        <th class="col-num">Pagato</th>
+        <th class="col-tot">Residuo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in mesi %}
+      {% set has_data = m.tot > 0 %}
+      <tr {% if not has_data %}style="opacity:.45"{% endif %}>
+        <td class="col-mese">{{ m.label }}</td>
+
+        <!-- Fissi -->
+        <td class="col-num">{% if m.fissi_tot > 0 %}€ {{ "%.2f"|format(m.fissi_tot) }}{% else %}—{% endif %}</td>
+        <td class="col-num">
+          {% if m.fissi_tot > 0 %}
+            {% set res = m.fissi_tot - m.fissi_pag %}
+            <span class="{% if res <= 0 %}val-ok{% elif res < m.fissi_tot %}val-warn{% else %}val-bad{% endif %}">
+              € {{ "%.2f"|format(res) }}
+            </span>
+          {% else %}—{% endif %}
+        </td>
+
+        <!-- Variabili -->
+        <td class="col-num">{% if m.var_tot > 0 %}€ {{ "%.2f"|format(m.var_tot) }}{% else %}—{% endif %}</td>
+        <td class="col-num">
+          {% if m.var_tot > 0 %}
+            {% set res = m.var_tot - m.var_pag %}
+            <span class="{% if res <= 0 %}val-ok{% elif res < m.var_tot %}val-warn{% else %}val-bad{% endif %}">
+              € {{ "%.2f"|format(res) }}
+            </span>
+          {% else %}—{% endif %}
+        </td>
+
+        <!-- Fatture Passive -->
+        <td class="col-num">{% if m.fp_tot > 0 %}€ {{ "%.2f"|format(m.fp_tot) }}{% else %}—{% endif %}</td>
+        <td class="col-num">
+          {% if m.fp_tot > 0 %}
+            {% set res = m.fp_tot - m.fp_pag %}
+            <span class="{% if res <= 0 %}val-ok{% elif res < m.fp_tot %}val-warn{% else %}val-bad{% endif %}">
+              € {{ "%.2f"|format(res) }}
+            </span>
+          {% else %}—{% endif %}
+        </td>
+
+        <!-- Totale -->
+        <td class="col-num">{% if m.tot > 0 %}€ {{ "%.2f"|format(m.tot) }}{% else %}—{% endif %}</td>
+        <td class="col-num">{% if m.pag > 0 %}<span class="val-ok">€ {{ "%.2f"|format(m.pag) }}</span>{% else %}—{% endif %}</td>
+        <td class="col-tot">
+          {% if m.tot > 0 %}
+            <span class="{% if m.residuo <= 0 %}val-ok{% elif m.residuo < m.tot %}val-warn{% else %}val-bad{% endif %}">
+              € {{ "%.2f"|format(m.residuo) }}
+            </span>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>Totale {{ anno }}</td>
+        <td class="col-num">€ {{ "%.2f"|format(mesi|sum(attribute='fissi_tot')) }}</td>
+        <td class="col-num">
+          <span class="{% if (mesi|sum(attribute='fissi_tot') - mesi|sum(attribute='fissi_pag')) <= 0 %}val-ok{% else %}val-bad{% endif %}">
+            € {{ "%.2f"|format(mesi|sum(attribute='fissi_tot') - mesi|sum(attribute='fissi_pag')) }}
+          </span>
+        </td>
+        <td class="col-num">€ {{ "%.2f"|format(mesi|sum(attribute='var_tot')) }}</td>
+        <td class="col-num">
+          <span class="{% if (mesi|sum(attribute='var_tot') - mesi|sum(attribute='var_pag')) <= 0 %}val-ok{% else %}val-bad{% endif %}">
+            € {{ "%.2f"|format(mesi|sum(attribute='var_tot') - mesi|sum(attribute='var_pag')) }}
+          </span>
+        </td>
+        <td class="col-num">€ {{ "%.2f"|format(mesi|sum(attribute='fp_tot')) }}</td>
+        <td class="col-num">
+          <span class="{% if (mesi|sum(attribute='fp_tot') - mesi|sum(attribute='fp_pag')) <= 0 %}val-ok{% else %}val-bad{% endif %}">
+            € {{ "%.2f"|format(mesi|sum(attribute='fp_tot') - mesi|sum(attribute='fp_pag')) }}
+          </span>
+        </td>
+        <td class="col-num">€ {{ "%.2f"|format(kpi_tot) }}</td>
+        <td class="col-num"><span class="val-ok">€ {{ "%.2f"|format(kpi_pag) }}</span></td>
+        <td class="col-tot">
+          <span class="{% if kpi_res <= 0 %}val-ok{% else %}val-bad{% endif %}">
+            € {{ "%.2f"|format(kpi_res) }}
+          </span>
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

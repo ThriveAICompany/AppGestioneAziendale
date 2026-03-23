@@ -1637,6 +1637,104 @@ def toggle_pagamento_costo(rid):
     return jsonify(result)
 
 
+@app.route("/dashboard-costi")
+@login_required
+def dashboard_costi():
+    conn = get_connection()
+    today = datetime.date.today()
+    anno = today.year
+    MESI_IT = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+               'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+    anno_str = str(anno)
+
+    # Costi Fissi: rate_finanziamento + rate_piano_rientro + costi_fissi_manuali
+    rate_fin = conn.execute("""
+        SELECT rf.data_scadenza, rf.rata_totale as importo, rf.pagato
+        FROM rate_finanziamento rf
+        WHERE LEFT(rf.data_scadenza, 4) = %s
+    """, (anno_str,)).fetchall()
+
+    rate_pr = conn.execute("""
+        SELECT rpr.data_scadenza, rpr.importo, rpr.pagato
+        FROM rate_piano_rientro rpr
+        WHERE LEFT(rpr.data_scadenza, 4) = %s
+    """, (anno_str,)).fetchall()
+
+    rate_man = conn.execute("""
+        SELECT data as data_scadenza, uscita_cassa as importo, pagato
+        FROM costi_fissi_manuali
+        WHERE anno = %s
+    """, (anno,)).fetchall()
+
+    # Costi Variabili
+    var_rows = conn.execute("""
+        SELECT mese, uscita_cassa, pagato
+        FROM costi_variabili
+        WHERE anno = %s
+    """, (anno,)).fetchall()
+
+    # Fatture Passive
+    fp_rows = conn.execute("""
+        SELECT mese, netto_a_pagare, pagato_fornitore as pagato
+        FROM fatture_passive
+        WHERE anno = %s
+    """, (anno,)).fetchall()
+
+    conn.close()
+
+    # Aggrega per mese
+    mesi = []
+    for m in range(1, 13):
+        # Fissi
+        fissi_tot = 0.0
+        fissi_pag = 0.0
+        for r in list(rate_fin) + list(rate_pr) + list(rate_man):
+            ds = r['data_scadenza']
+            if isinstance(ds, datetime.date):
+                mese_r = ds.month
+            else:
+                mese_r = int(str(ds)[5:7])
+            if mese_r == m:
+                fissi_tot += float(r['importo'] or 0)
+                if r['pagato']:
+                    fissi_pag += float(r['importo'] or 0)
+
+        # Variabili
+        var_tot = sum(float(r['uscita_cassa'] or 0) for r in var_rows if r['mese'] == m)
+        var_pag = sum(float(r['uscita_cassa'] or 0) for r in var_rows if r['mese'] == m and r['pagato'])
+
+        # Fatture Passive
+        fp_tot = sum(float(r['netto_a_pagare'] or 0) for r in fp_rows if r['mese'] == m)
+        fp_pag = sum(float(r['netto_a_pagare'] or 0) for r in fp_rows if r['mese'] == m and r['pagato'])
+
+        tot = fissi_tot + var_tot + fp_tot
+        pag = fissi_pag + var_pag + fp_pag
+        mesi.append({
+            'mese': m,
+            'label': MESI_IT[m],
+            'fissi_tot': fissi_tot,
+            'fissi_pag': fissi_pag,
+            'var_tot': var_tot,
+            'var_pag': var_pag,
+            'fp_tot': fp_tot,
+            'fp_pag': fp_pag,
+            'tot': tot,
+            'pag': pag,
+            'residuo': tot - pag,
+        })
+
+    kpi_tot = sum(m['tot'] for m in mesi)
+    kpi_pag = sum(m['pag'] for m in mesi)
+    kpi_res = kpi_tot - kpi_pag
+
+    return render_template("dashboard_costi.html",
+                           mesi=mesi,
+                           kpi_tot=kpi_tot,
+                           kpi_pag=kpi_pag,
+                           kpi_res=kpi_res,
+                           anno=anno)
+
+
 @app.route("/costi-fissi")
 @login_required
 def costi_fissi():
