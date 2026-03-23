@@ -20,9 +20,9 @@
   .fin-kpi { text-align: right; }
   .fin-kpi-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
   .fin-kpi-val { font-size: .95rem; font-weight: 700; }
-  .fin-kpi-val.blu { color: #1565c0; }
-  .fin-kpi-val.verde { color: #2e7d32; }
-  .fin-kpi-val.arancio { color: #e65100; }
+  .fin-kpi-val.blu { color: var(--text); }
+  .fin-kpi-val.verde { color: var(--primary); }
+  .fin-kpi-val.arancio { color: var(--text-muted); }
   .fin-kpi-val.grigio { color: var(--text-muted); }
   .fin-chevron { font-size: .75rem; color: var(--text-muted); transition: transform .2s; }
   .fin-chevron.open { transform: rotate(90deg); }
@@ -45,34 +45,34 @@
   .ricavi-table td.td-azione  { text-align: center; width: 44px; }
 
   /* Colori riga */
-  .row-incassata td { background: #f1faf2; }
-  .row-fatturata td { background: #eff6ff; }
-  .row-scaduta   td { background: #fff5f5; }
-  .row-attesa    td { background: #fffef5; }
+  .row-incassata td { background: transparent; }
+  .row-fatturata td { background: transparent; }
+  .row-scaduta   td { background: transparent; }
+  .row-attesa    td { background: transparent; }
 
   /* Subtotale mese */
-  .mese-subtotale td { background: #f3f4f6; font-size: 0.8rem; color: #555; padding: .4rem .6rem; font-weight: 600; }
+  .mese-subtotale td { background: var(--surface); border-top: 2px solid var(--border); font-size: 0.8rem; color: var(--text-muted); padding: .4rem .6rem; font-weight: 600; }
 
   /* Badge pending */
   .mese-badge-pending {
     display: inline-block;
-    background: rgba(239,83,80,0.85); border-radius: 20px;
-    padding: 1px 9px; font-size: 0.72rem; font-weight: 700;
-    color: #fff; vertical-align: middle;
+    background: transparent; border-radius: 20px; border: 1px solid var(--border);
+    padding: 1px 9px; font-size: 0.72rem; font-weight: 600;
+    color: var(--text-muted); vertical-align: middle;
   }
 
   /* Badge tipo pagamento */
   .badge-tipo {
     display: inline-block; font-size: 0.62rem; padding: 1px 5px; border-radius: 4px;
-    font-weight: 700; letter-spacing: 0.03em; margin-left: 5px; vertical-align: middle;
+    font-weight: 600; letter-spacing: 0.03em; margin-left: 5px; vertical-align: middle;
   }
-  .badge-abb  { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; }
-  .badge-rate { background: #e3f2fd; border: 1px solid #90caf9; color: #1565c0; }
+  .badge-abb  { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+  .badge-rate { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
 
   /* Badge partner */
   .badge-partner {
     display: inline-block; font-size: 0.7rem; padding: 1px 6px;
-    border-radius: 4px; background: #fff3e0; border: 1px solid #ffcc80; color: #e65100;
+    border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
   }
 
   /* Azioni riga */
@@ -95,10 +95,10 @@
     font-size: 0.75rem; font-weight: 700; cursor: pointer;
     transition: all 0.15s; background: transparent;
   }
-  .tbtn-f { border-color: #90caf9; color: #1565c0; }
-  .tbtn-f.on { background: #1e88e5; border-color: #1e88e5; color: #fff; }
-  .tbtn-i { border-color: #a5d6a7; color: #2e7d32; }
-  .tbtn-i.on { background: #43a047; border-color: #43a047; color: #fff; }
+  .tbtn-f { border-color: var(--border); color: var(--text-muted); }
+  .tbtn-f.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .tbtn-i { border-color: var(--border); color: var(--text-muted); }
+  .tbtn-i.on { background: var(--primary); border-color: var(--primary); color: #fff; }
   .tbtn:hover { opacity: 0.8; transform: scale(1.08); }
   .tbtn:disabled { opacity: 0.4; cursor: default; transform: none; }
 
@@ -110,10 +110,10 @@
   }
   .kpi-card .lbl { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.15rem; }
   .kpi-card .val { font-size: 1.05rem; font-weight: 700; }
-  .kpi-card.blu  .val { color: #1565c0; }
-  .kpi-card.verde .val { color: #2e7d32; }
-  .kpi-card.rosso .val { color: #c62828; }
-  .kpi-card.arancio .val { color: #e65100; }
+  .kpi-card.blu  .val { color: var(--text); }
+  .kpi-card.verde .val { color: var(--primary); }
+  .kpi-card.rosso .val { color: var(--text); }
+  .kpi-card.arancio .val { color: var(--text); }
 
   /* Legenda */
   .legenda { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; font-size: 0.8rem; align-items: center; }
@@ -272,11 +272,7 @@
 
 <!-- Legenda -->
 <div class="legenda">
-  <span><span class="legenda-dot" style="background:#fffef5;border:1px solid #f9a825"></span> In attesa</span>
-  <span><span class="legenda-dot" style="background:#eff6ff;border:1px solid #90caf9"></span> Fatturata</span>
-  <span><span class="legenda-dot" style="background:#f1faf2;border:1px solid #a5d6a7"></span> Incassata</span>
-  <span><span class="legenda-dot" style="background:#fff5f5;border:1px solid #ef9a9a"></span> Scaduta</span>
-  <span style="margin-left:0.5rem">
+  <span>
     <span class="tbtn tbtn-f on" style="cursor:default;width:20px;height:20px;font-size:0.68rem">F</span> Fatturata &nbsp;
     <span class="tbtn tbtn-i on" style="cursor:default;width:20px;height:20px;font-size:0.68rem">I</span> Incassata
   </span>
@@ -377,14 +373,14 @@
         {% endfor %}
         <tr class="mese-subtotale">
           <td colspan="3" style="text-align:right">Totale {{ mesi_it[m] }}</td>
-          <td style="text-align:right;color:#e65100">
+          <td style="text-align:right;color:var(--text-muted)">
             {% if gruppo.tot_partner > 0 %}&euro; {{ gruppo.tot_partner|format_eur }}{% endif %}
           </td>
           <td style="text-align:right">&euro; {{ gruppo.totale|format_eur }}</td>
-          <td style="text-align:right;font-size:0.78rem;color:#1565c0">
+          <td style="text-align:right;font-size:0.78rem;color:var(--primary)">
             {% if gruppo.fatturato > 0 %}&euro; {{ gruppo.fatturato|format_eur }}{% endif %}
           </td>
-          <td style="text-align:right;font-size:0.78rem;color:#2e7d32">
+          <td style="text-align:right;font-size:0.78rem;color:var(--primary)">
             {% if gruppo.incassato > 0 %}&euro; {{ gruppo.incassato|format_eur }}{% endif %}
           </td>
         </tr>
