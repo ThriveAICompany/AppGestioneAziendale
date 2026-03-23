@@ -339,9 +339,9 @@ trTot.innerHTML = htmlTot;
 bkFoot.appendChild(trTot);
 
 // ── MODAL ───────────────────────────────────────────────────────────────────
-const overlay   = document.getElementById('modalOverlay');
-const modalForm = document.getElementById('modalForm');
-const modalTitle = document.getElementById('modalTitle');
+const modalOverlay = document.getElementById('modalOverlay');
+const modalForm    = document.getElementById('modalForm');
+const modalTitle   = document.getElementById('modalTitle');
 const newUrl    = "{{ url_for('nuova_proiezione_uscita') }}";
 
 function openModal() {
@@ -353,7 +353,7 @@ function openModal() {
   document.getElementById('fMeseInizio').value = '{{ oggi_mese }}';
   document.getElementById('fDurata').value  = '';
   document.getElementById('fNote').value    = '';
-  overlay.style.display = 'flex';
+  modalOverlay.style.display = 'flex';
 }
 
 function openEditModal(id, nome, importo, tipo, ricorrenza, meseInizio, durata, note) {
@@ -366,14 +366,14 @@ function openEditModal(id, nome, importo, tipo, ricorrenza, meseInizio, durata, 
   document.getElementById('fMeseInizio').value = meseInizio;
   document.getElementById('fDurata').value     = durata;
   document.getElementById('fNote').value       = note;
-  overlay.style.display = 'flex';
+  modalOverlay.style.display = 'flex';
 }
 
 function closeModal() {
-  overlay.style.display = 'none';
+  modalOverlay.style.display = 'none';
 }
 
-overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 </script>
 {% endblock %}
