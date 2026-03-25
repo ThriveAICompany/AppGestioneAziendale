@@ -542,21 +542,31 @@ def api_ricavi_contabili(anno):
     conn = get_connection()
     rows = conn.execute("""
         SELECT
-            CAST(SUBSTRING(rc.data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
-            COALESCE(SUM(rc.importo), 0) as totale
-        FROM rate_contratto rc
-        JOIN contratti ct ON rc.contratto_id = ct.id
-        WHERE LEFT(rc.data_scadenza, 4) = %s
-        GROUP BY mese
+            CAST(SUBSTRING(data FROM 6 FOR 2) AS INTEGER) as mese,
+            importo,
+            LOWER(descrizione) as desc_lower
+        FROM movimenti
+        WHERE tipo = 'entrata' AND LEFT(data, 4) = %s AND data IS NOT NULL
         ORDER BY mese
     """, (str(anno),)).fetchall()
     conn.close()
 
-    mesi_data = {i: 0.0 for i in range(1, 13)}
+    mesi_data = {i: {'netto': 0.0, 'iva': 0.0} for i in range(1, 13)}
     for row in rows:
-        mesi_data[row['mese']] = round(float(row['totale']), 2)
+        importo = float(row['importo'])
+        desc = row['desc_lower'] or ''
+        if 'stripe' in desc or 'paypal' in desc:
+            mesi_data[row['mese']]['netto'] += importo
+        else:
+            netto = importo / 1.22
+            mesi_data[row['mese']]['netto'] += netto
+            mesi_data[row['mese']]['iva']   += importo - netto
 
-    return jsonify({'anno': anno, 'mesi': [mesi_data[i] for i in range(1, 13)]})
+    result = [
+        {'netto': round(mesi_data[i]['netto'], 2), 'iva': round(mesi_data[i]['iva'], 2)}
+        for i in range(1, 13)
+    ]
+    return jsonify({'anno': anno, 'mesi': result})
 
 
 # ─────────────────────────────────────────
