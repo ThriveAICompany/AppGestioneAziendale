@@ -349,9 +349,8 @@ def dashboard():
         "SELECT DISTINCT CAST(LEFT(data, 4) AS INTEGER) FROM movimenti WHERE data IS NOT NULL ORDER BY 1 DESC"
     ).fetchall()]
     current_year = datetime.date.today().year
-    if current_year not in anni_mov:
-        anni_mov.insert(0, current_year)
-    anni_mov = sorted(set(anni_mov), reverse=True)
+    base_years = set(range(2024, current_year + 2))
+    anni_mov = sorted(set(anni_mov) | base_years, reverse=True)
 
     anno_kpi = int(request.args.get('anno_kpi', current_year))
     anno_kpi_str = str(anno_kpi)
@@ -457,8 +456,7 @@ def dashboard():
     """).fetchall()
     anni_set = set(r['anno'] for r in anni_rows)
     current_year = datetime.date.today().year
-    anni_set.add(current_year)
-    anni_set.add(2026)
+    anni_set |= set(range(2024, current_year + 2))
     anni_cashflow = sorted(anni_set)
 
     conn.close()
