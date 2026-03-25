@@ -1062,11 +1062,13 @@ def toggle_incasso(rid):
 def movimenti():
     conn = get_connection()
 
-    anni_disponibili = [r[0] for r in conn.execute(
+    anni_da_db = [r[0] for r in conn.execute(
         "SELECT DISTINCT LEFT(data, 4) as anno FROM movimenti WHERE data IS NOT NULL ORDER BY anno DESC"
     ).fetchall()]
-
     anno_corrente_str = str(datetime.date.today().year)
+    base_years_str = [str(y) for y in range(2024, datetime.date.today().year + 2)]
+    anni_disponibili = sorted(set(anni_da_db) | set(base_years_str), reverse=True)
+
     anno_sel = request.args.get('anno', anno_corrente_str)
     mese_sel = request.args.get('mese', '')
 
@@ -1234,8 +1236,8 @@ def import_csv_conferma():
     # Nota: Banca Sella usa lo stesso codice_banca per commissione + bonifico
     # della stessa operazione, quindi la chiave di dedup è (codice_banca, importo).
     existing_codici = set(
-        (r[0], round(float(r[1]), 2)) for r in conn.execute(
-            "SELECT codice_banca, importo FROM movimenti WHERE codice_banca IS NOT NULL"
+        (r[0], round(float(r[1]), 2), (r[2] or '')[:4]) for r in conn.execute(
+            "SELECT codice_banca, importo, data FROM movimenti WHERE codice_banca IS NOT NULL"
         ).fetchall()
     )
     existing_fallback = set(
@@ -1249,7 +1251,8 @@ def import_csv_conferma():
     for r in righe:
         codice_banca = r.get('codice_banca') or None
         if codice_banca:
-            key = (codice_banca, round(float(r['importo']), 2))
+            anno_r = (r.get('data') or '')[:4]
+            key = (codice_banca, round(float(r['importo']), 2), anno_r)
             if key in existing_codici or key in seen_in_batch:
                 duplicati += 1
                 continue
