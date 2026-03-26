@@ -79,15 +79,15 @@
 <div class="dc-kpi-row">
   <div class="dc-kpi-card">
     <div class="dc-kpi-label">Totale anno</div>
-    <div class="dc-kpi-val">€ {{ "%.2f"|format(kpi_tot) }}</div>
+    <div class="dc-kpi-val">€ {{ kpi_tot|format_eur }}</div>
   </div>
   <div class="dc-kpi-card">
     <div class="dc-kpi-label">Già pagato</div>
-    <div class="dc-kpi-val val-ok">€ {{ "%.2f"|format(kpi_pag) }}</div>
+    <div class="dc-kpi-val val-ok">€ {{ kpi_pag|format_eur }}</div>
   </div>
   <div class="dc-kpi-card">
     <div class="dc-kpi-label">Da pagare</div>
-    <div class="dc-kpi-val {% if kpi_res > 0 %}val-bad{% else %}val-ok{% endif %}">€ {{ "%.2f"|format(kpi_res) }}</div>
+    <div class="dc-kpi-val {% if kpi_res > 0 %}val-bad{% else %}val-ok{% endif %}">€ {{ kpi_res|format_eur }}</div>
   </div>
 </div>
 
@@ -121,45 +121,45 @@
         <td class="col-mese">{{ m.label }}</td>
 
         <!-- Fissi -->
-        <td class="col-num">{% if m.fissi_tot > 0 %}€ {{ "%.2f"|format(m.fissi_tot) }}{% else %}—{% endif %}</td>
+        <td class="col-num">{% if m.fissi_tot > 0 %}€ {{ m.fissi_tot|format_eur }}{% else %}—{% endif %}</td>
         <td class="col-num">
           {% if m.fissi_tot > 0 %}
             {% set res = m.fissi_tot - m.fissi_pag %}
             <span class="{% if res <= 0 %}val-ok{% elif res < m.fissi_tot %}val-warn{% else %}val-bad{% endif %}">
-              € {{ "%.2f"|format(res) }}
+              € {{ res|format_eur }}
             </span>
           {% else %}—{% endif %}
         </td>
 
         <!-- Variabili -->
-        <td class="col-num">{% if m.var_tot > 0 %}€ {{ "%.2f"|format(m.var_tot) }}{% else %}—{% endif %}</td>
+        <td class="col-num">{% if m.var_tot > 0 %}€ {{ m.var_tot|format_eur }}{% else %}—{% endif %}</td>
         <td class="col-num">
           {% if m.var_tot > 0 %}
             {% set res = m.var_tot - m.var_pag %}
             <span class="{% if res <= 0 %}val-ok{% elif res < m.var_tot %}val-warn{% else %}val-bad{% endif %}">
-              € {{ "%.2f"|format(res) }}
+              € {{ res|format_eur }}
             </span>
           {% else %}—{% endif %}
         </td>
 
         <!-- Fatture Passive -->
-        <td class="col-num">{% if m.fp_tot > 0 %}€ {{ "%.2f"|format(m.fp_tot) }}{% else %}—{% endif %}</td>
+        <td class="col-num">{% if m.fp_tot > 0 %}€ {{ m.fp_tot|format_eur }}{% else %}—{% endif %}</td>
         <td class="col-num">
           {% if m.fp_tot > 0 %}
             {% set res = m.fp_tot - m.fp_pag %}
             <span class="{% if res <= 0 %}val-ok{% elif res < m.fp_tot %}val-warn{% else %}val-bad{% endif %}">
-              € {{ "%.2f"|format(res) }}
+              € {{ res|format_eur }}
             </span>
           {% else %}—{% endif %}
         </td>
 
         <!-- Totale -->
-        <td class="col-num">{% if m.tot > 0 %}€ {{ "%.2f"|format(m.tot) }}{% else %}—{% endif %}</td>
-        <td class="col-num">{% if m.pag > 0 %}<span class="val-ok">€ {{ "%.2f"|format(m.pag) }}</span>{% else %}—{% endif %}</td>
+        <td class="col-num">{% if m.tot > 0 %}€ {{ m.tot|format_eur }}{% else %}—{% endif %}</td>
+        <td class="col-num">{% if m.pag > 0 %}<span class="val-ok">€ {{ m.pag|format_eur }}</span>{% else %}—{% endif %}</td>
         <td class="col-tot">
           {% if m.tot > 0 %}
             <span class="{% if m.residuo <= 0 %}val-ok{% elif m.residuo < m.tot %}val-warn{% else %}val-bad{% endif %}">
-              € {{ "%.2f"|format(m.residuo) }}
+              € {{ m.residuo|format_eur }}
             </span>
           {% else %}—{% endif %}
         </td>
@@ -169,29 +169,29 @@
     <tfoot>
       <tr>
         <td>Totale {{ anno }}</td>
-        <td class="col-num">€ {{ "%.2f"|format(mesi|sum(attribute='fissi_tot')) }}</td>
+        <td class="col-num">€ {{ mesi|sum(attribute='fissi_tot')|format_eur }}</td>
         <td class="col-num">
           <span class="{% if (mesi|sum(attribute='fissi_tot') - mesi|sum(attribute='fissi_pag')) <= 0 %}val-ok{% else %}val-bad{% endif %}">
-            € {{ "%.2f"|format(mesi|sum(attribute='fissi_tot') - mesi|sum(attribute='fissi_pag')) }}
+            € {{ (mesi|sum(attribute='fissi_tot') - mesi|sum(attribute='fissi_pag'))|format_eur }}
           </span>
         </td>
-        <td class="col-num">€ {{ "%.2f"|format(mesi|sum(attribute='var_tot')) }}</td>
+        <td class="col-num">€ {{ mesi|sum(attribute='var_tot')|format_eur }}</td>
         <td class="col-num">
           <span class="{% if (mesi|sum(attribute='var_tot') - mesi|sum(attribute='var_pag')) <= 0 %}val-ok{% else %}val-bad{% endif %}">
-            € {{ "%.2f"|format(mesi|sum(attribute='var_tot') - mesi|sum(attribute='var_pag')) }}
+            € {{ (mesi|sum(attribute='var_tot') - mesi|sum(attribute='var_pag'))|format_eur }}
           </span>
         </td>
-        <td class="col-num">€ {{ "%.2f"|format(mesi|sum(attribute='fp_tot')) }}</td>
+        <td class="col-num">€ {{ mesi|sum(attribute='fp_tot')|format_eur }}</td>
         <td class="col-num">
           <span class="{% if (mesi|sum(attribute='fp_tot') - mesi|sum(attribute='fp_pag')) <= 0 %}val-ok{% else %}val-bad{% endif %}">
-            € {{ "%.2f"|format(mesi|sum(attribute='fp_tot') - mesi|sum(attribute='fp_pag')) }}
+            € {{ (mesi|sum(attribute='fp_tot') - mesi|sum(attribute='fp_pag'))|format_eur }}
           </span>
         </td>
-        <td class="col-num">€ {{ "%.2f"|format(kpi_tot) }}</td>
-        <td class="col-num"><span class="val-ok">€ {{ "%.2f"|format(kpi_pag) }}</span></td>
+        <td class="col-num">€ {{ kpi_tot|format_eur }}</td>
+        <td class="col-num"><span class="val-ok">€ {{ kpi_pag|format_eur }}</span></td>
         <td class="col-tot">
           <span class="{% if kpi_res <= 0 %}val-ok{% else %}val-bad{% endif %}">
-            € {{ "%.2f"|format(kpi_res) }}
+            € {{ kpi_res|format_eur }}
           </span>
         </td>
       </tr>
