@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Valore Clienti{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Valore Clienti</h1>
+  <div style="display:flex;gap:.5rem;align-items:center">
+    <select id="filtroSettore" class="form-control" style="min-width:180px" onchange="filtraSettore(this.value)">
+      <option value="">Tutti i settori</option>
+      {% for settore in settori %}
+      <option value="{{ settore }}">{{ settore }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-grid" style="margin-bottom:1.5rem">
+  <div class="kpi-card">
+    <div class="kpi-label">
+      Clienti totali
+      <div class="kpi-icon"><i data-lucide="users"></i></div>
+    </div>
+    <div class="kpi-value">{{ clienti_list|length }}</div>
+    <div class="kpi-trend">
+      <span class="trend-sub">con almeno un contratto</span>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">
+      Fatturato incassato
+      <div class="kpi-icon"><i data-lucide="banknote"></i></div>
+    </div>
+    <div class="kpi-value">€ {{ totale_incassato|format_eur }}</div>
+    <div class="kpi-trend">
+      <span class="trend-sub">somma incassi tutti i clienti</span>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">
+      Valore contratti totale
+      <div class="kpi-icon"><i data-lucide="file-text"></i></div>
+    </div>
+    <div class="kpi-value">€ {{ totale_contratti|format_eur }}</div>
+    <div class="kpi-trend">
+      <span class="trend-sub">importo lordo contratti</span>
+    </div>
+  </div>
+</div>
+
+<!-- Tabella ranking -->
+{% if clienti_list %}
+<table class="table" id="tabellaClienti">
+  <thead>
+    <tr>
+      <th style="width:2.5rem">#</th>
+      <th>Cliente</th>
+      <th>Settore</th>
+      <th>Fatturato incassato</th>
+      <th>Valore contratti</th>
+      <th>Contratti attivi</th>
+      <th style="width:160px"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% set max_inc = clienti_list[0].fatturato_incassato if clienti_list[0].fatturato_incassato > 0 else 1 %}
+    {% for cl in clienti_list %}
+    <tr class="cliente-row" data-settore="{{ cl.settore }}">
+      <td style="color:var(--text-muted);font-weight:600">{{ loop.index }}</td>
+      <td>
+        <strong>{{ cl.nome }}</strong>
+        {% if cl.email %}<div style="font-size:.75rem;color:var(--text-muted)">{{ cl.email }}</div>{% endif %}
+        <!-- barra peso relativo -->
+        {% if cl.fatturato_incassato > 0 %}
+        <div style="margin-top:.3rem;height:3px;border-radius:2px;background:var(--border);overflow:hidden">
+          <div style="height:100%;border-radius:2px;background:var(--accent);width:{{ (cl.fatturato_incassato / max_inc * 100)|int }}%"></div>
+        </div>
+        {% endif %}
+      </td>
+      <td>
+        <span class="badge settore-badge" data-settore="{{ cl.settore }}" id="badge-{{ cl.id }}">{{ cl.settore }}</span>
+        <button class="btn btn-sm btn-secondary btn-icon" style="margin-left:.3rem" onclick="apriEditSettore({{ cl.id }}, '{{ cl.settore }}')" title="Modifica settore"><i data-lucide="pencil"></i></button>
+      </td>
+      <td>
+        {% if cl.fatturato_incassato > 0 %}
+        <strong class="positivo">€ {{ cl.fatturato_incassato|format_eur }}</strong>
+        {% else %}
+        <span style="color:var(--text-muted)">€ 0,00</span>
+        {% endif %}
+      </td>
+      <td>€ {{ cl.valore_contratti|format_eur }}</td>
+      <td>
+        {% if cl.contratti_attivi > 0 %}
+        <span class="badge badge-tipo-operativo">{{ cl.contratti_attivi }} attivi</span>
+        {% else %}
+        <span style="color:var(--text-muted)">{{ cl.contratti_totali }} totali</span>
+        {% endif %}
+      </td>
+      <td class="actions">
+        <div class="actions-wrap" id="edit-settore-{{ cl.id }}" style="display:none">
+          <select class="form-control" id="sel-{{ cl.id }}" style="font-size:.8rem;padding:.2rem .4rem">
+            {% for s in settori %}
+            <option value="{{ s }}" {% if s == cl.settore %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="salvaSettore({{ cl.id }})">Ok</button>
+          <button class="btn btn-sm btn-secondary" onclick="chiudiEditSettore({{ cl.id }})">✕</button>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-msg">Nessun cliente trovato. I clienti vengono creati automaticamente quando aggiungi un contratto in Ricavi.</p>
+{% endif %}
+
+<!-- Grafico distribuzione settori -->
+{% if settori_data %}
+<div class="form-card" style="margin-top:2rem">
+  <h3 style="margin-bottom:1rem">Fatturato incassato per settore</h3>
+  <canvas id="chartSettori" height="80"></canvas>
+</div>
+{% endif %}
+
+<!-- Modal edit settore (fallback senza JS avanzato) -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ---- Colori badge settori ----
+const SETTORE_COLORS = {
+  "IT / Software":             "#6366f1",
+  "Consulenza / Professionale":"#8b5cf6",
+  "Manifatturiero":            "#f59e0b",
+  "Retail / Commercio":        "#10b981",
+  "Healthcare / Sanità":       "#06b6d4",
+  "Finanza / Assicurazioni":   "#3b82f6",
+  "Immobiliare":               "#f97316",
+  "Hospitality / Turismo":     "#ec4899",
+  "Costruzioni / Edilizia":    "#84cc16",
+  "Media / Comunicazione":     "#a855f7",
+  "Agroalimentare":            "#22c55e",
+  "Energia / Utilities":       "#eab308",
+  "Logistica / Trasporti":     "#64748b",
+  "Education / Formazione":    "#14b8a6",
+  "Automotive":                "#ef4444",
+  "Altro":                     "#94a3b8",
+};
+
+function getSettoreColor(s) {
+  return SETTORE_COLORS[s] || "#94a3b8";
+}
+
+// Colora tutti i badge al caricamento
+document.querySelectorAll('.settore-badge').forEach(badge => {
+  const color = getSettoreColor(badge.dataset.settore);
+  badge.style.background = color + '22';
+  badge.style.color = color;
+  badge.style.border = '1px solid ' + color + '55';
+  badge.style.fontWeight = '600';
+  badge.style.fontSize = '.72rem';
+  badge.style.padding = '.15rem .5rem';
+  badge.style.borderRadius = '999px';
+});
+
+// ---- Filtro settore ----
+function filtraSettore(val) {
+  document.querySelectorAll('.cliente-row').forEach(row => {
+    row.style.display = (!val || row.dataset.settore === val) ? '' : 'none';
+  });
+}
+
+// ---- Edit settore inline ----
+function apriEditSettore(id, settoreAttuale) {
+  document.getElementById('edit-settore-' + id).style.display = 'flex';
+}
+
+function chiudiEditSettore(id) {
+  document.getElementById('edit-settore-' + id).style.display = 'none';
+}
+
+function salvaSettore(id) {
+  const sel = document.getElementById('sel-' + id);
+  const settore = sel.value;
+  const formData = new FormData();
+  formData.append('settore', settore);
+
+  fetch('/clienti/' + id + '/settore', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const badge = document.getElementById('badge-' + id);
+        badge.textContent = settore;
+        badge.dataset.settore = settore;
+        const color = getSettoreColor(settore);
+        badge.style.background = color + '22';
+        badge.style.color = color;
+        badge.style.border = '1px solid ' + color + '55';
+        // aggiorna data-settore sulla riga per il filtro
+        badge.closest('tr').dataset.settore = settore;
+        chiudiEditSettore(id);
+      }
+    });
+}
+
+// ---- Grafico settori ----
+{% if settori_data %}
+const settoriLabels = {{ settori_data | map(attribute=0) | list | tojson }};
+const settoriValori = {{ settori_data | map(attribute=1) | list | tojson }};
+const settoriColors = settoriLabels.map(s => getSettoreColor(s));
+
+new Chart(document.getElementById('chartSettori'), {
+  type: 'bar',
+  data: {
+    labels: settoriLabels,
+    datasets: [{
+      label: 'Fatturato incassato (€)',
+      data: settoriValori,
+      backgroundColor: settoriColors.map(c => c + 'aa'),
+      borderColor: settoriColors,
+      borderWidth: 1,
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => '€ ' + ctx.raw.toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2})
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          callback: v => '€ ' + v.toLocaleString('it-IT')
+        }
+      }
+    }
+  }
+});
+{% endif %}
+</script>
+
+<style>
+.actions-wrap { display: flex; gap: .3rem; align-items: center; flex-wrap: nowrap; }
+</style>
+{% endblock %}

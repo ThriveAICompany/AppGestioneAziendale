@@ -88,9 +88,26 @@ RICORRENZE = {
     "trimestrale": 3,
     "semestrale": 6,
     "annuale": 12,
-
-
 }
+
+SETTORI = [
+    "IT / Software",
+    "Consulenza / Professionale",
+    "Manifatturiero",
+    "Retail / Commercio",
+    "Healthcare / Sanità",
+    "Finanza / Assicurazioni",
+    "Immobiliare",
+    "Hospitality / Turismo",
+    "Costruzioni / Edilizia",
+    "Media / Comunicazione",
+    "Agroalimentare",
+    "Energia / Utilities",
+    "Logistica / Trasporti",
+    "Education / Formazione",
+    "Automotive",
+    "Altro",
+]
 
 
 def _add_months(d, months):
@@ -4639,6 +4656,69 @@ def target_budget_mensile():
     conn.commit()
     conn.close()
     return redirect(url_for("target_page"))
+
+
+@app.route("/clienti")
+@login_required
+def clienti():
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT
+            cl.id,
+            cl.nome,
+            COALESCE(cl.settore, 'Altro') AS settore,
+            cl.email,
+            (SELECT COALESCE(SUM(rc.importo), 0)
+             FROM rate_contratto rc
+             JOIN contratti c ON rc.contratto_id = c.id
+             WHERE c.cliente_id = cl.id AND rc.pagato = 1) AS fatturato_incassato,
+            (SELECT COALESCE(SUM(c.importo_totale), 0)
+             FROM contratti c
+             WHERE c.cliente_id = cl.id) AS valore_contratti,
+            (SELECT COUNT(*)
+             FROM contratti c
+             WHERE c.cliente_id = cl.id AND c.stato = 'attivo') AS contratti_attivi,
+            (SELECT COUNT(*)
+             FROM contratti c
+             WHERE c.cliente_id = cl.id) AS contratti_totali
+        FROM clienti cl
+        ORDER BY fatturato_incassato DESC
+    """).fetchall()
+    conn.close()
+
+    clienti_list = [dict(r) for r in rows]
+
+    # Aggregazione per settore
+    from collections import defaultdict
+    settori_map = defaultdict(float)
+    for c in clienti_list:
+        settori_map[c['settore']] += c['fatturato_incassato']
+    settori_data = sorted(settori_map.items(), key=lambda x: x[1], reverse=True)
+
+    totale_incassato = sum(c['fatturato_incassato'] for c in clienti_list)
+    totale_contratti = sum(c['valore_contratti'] for c in clienti_list)
+
+    return render_template(
+        "clienti.html",
+        clienti_list=clienti_list,
+        settori_data=settori_data,
+        totale_incassato=totale_incassato,
+        totale_contratti=totale_contratti,
+        settori=SETTORI,
+    )
+
+
+@app.route("/clienti/<int:cid>/settore", methods=["POST"])
+@login_required
+def aggiorna_settore_cliente(cid):
+    settore = request.form.get("settore", "Altro")
+    if settore not in SETTORI:
+        settore = "Altro"
+    conn = get_connection()
+    conn.execute("UPDATE clienti SET settore = %s WHERE id = %s", (settore, cid))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "settore": settore})
 
 
 if __name__ == "__main__":

@@ -111,6 +111,15 @@
         </li>
 
         <li>
+          <a href="{{ url_for('clienti') }}"
+             class="sidebar-item {% if request.endpoint in ['clienti','aggiorna_settore_cliente'] %}active{% endif %}"
+             data-label="Clienti">
+            <i data-lucide="users" class="sidebar-icon"></i>
+            <span class="sidebar-label">Clienti</span>
+          </a>
+        </li>
+
+        <li>
           <a href="{{ url_for('movimenti') }}"
              class="sidebar-item {% if request.endpoint in ['movimenti','nuovo_movimento','import_csv','import_csv_upload','import_csv_conferma'] %}active{% endif %}"
              data-label="Movimenti">

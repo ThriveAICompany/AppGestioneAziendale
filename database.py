@@ -343,12 +343,14 @@ def _migrate(conn):
     """Add new columns to existing tables without breaking existing data."""
     c = conn.cursor()
 
-    # clienti: add sorgente, partner_id
+    # clienti: add sorgente, partner_id, settore
     existing = _get_columns(c, 'clienti')
     if 'sorgente' not in existing:
         c.execute("ALTER TABLE clienti ADD COLUMN sorgente TEXT DEFAULT 'diretto'")
     if 'partner_id' not in existing:
         c.execute("ALTER TABLE clienti ADD COLUMN partner_id INTEGER")
+    if 'settore' not in existing:
+        c.execute("ALTER TABLE clienti ADD COLUMN settore TEXT DEFAULT 'Altro'")
 
     # movimenti: add contratto_id, rata_id, categoria, codice_banca
     existing = _get_columns(c, 'movimenti')
