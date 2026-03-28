@@ -29,13 +29,34 @@
           </a>
         </li>
 
-        <li>
-          <a href="{{ url_for('ricavi') }}"
-             class="sidebar-item {% if request.endpoint == 'ricavi' %}active{% endif %}"
-             data-label="Ricavi">
+        <li class="nav-group">
+          <div class="sidebar-item nav-parent {% if request.endpoint in ['ricavi','clienti','aggiorna_settore_cliente'] %}active{% endif %}"
+               data-label="Ricavi"
+               onclick="toggleRicaviMenu()">
             <i data-lucide="table-2" class="sidebar-icon"></i>
             <span class="sidebar-label">Ricavi</span>
-          </a>
+            <svg class="nav-chevron" id="ricaviChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+          <ul class="nav-submenu" id="ricaviSubmenu">
+            <li>
+              <a href="{{ url_for('ricavi') }}"
+                 class="sidebar-item nav-subitem {% if request.endpoint == 'ricavi' %}active{% endif %}"
+                 data-label="Ricavi">
+                <span class="nav-subitem-dot"></span>
+                <span class="sidebar-label">Ricavi</span>
+              </a>
+            </li>
+            <li>
+              <a href="{{ url_for('clienti') }}"
+                 class="sidebar-item nav-subitem {% if request.endpoint in ['clienti','aggiorna_settore_cliente'] %}active{% endif %}"
+                 data-label="Clienti">
+                <span class="nav-subitem-dot"></span>
+                <span class="sidebar-label">Clienti</span>
+              </a>
+            </li>
+          </ul>
         </li>
 
         <li class="nav-group">
@@ -107,15 +128,6 @@
              data-label="Pipeline">
             <i data-lucide="kanban" class="sidebar-icon"></i>
             <span class="sidebar-label">Pipeline</span>
-          </a>
-        </li>
-
-        <li>
-          <a href="{{ url_for('clienti') }}"
-             class="sidebar-item {% if request.endpoint in ['clienti','aggiorna_settore_cliente'] %}active{% endif %}"
-             data-label="Clienti">
-            <i data-lucide="users" class="sidebar-icon"></i>
-            <span class="sidebar-label">Clienti</span>
           </a>
         </li>
 
@@ -202,8 +214,20 @@
       if (collapsed) {
         document.getElementById('costiSubmenu').classList.remove('open');
         document.getElementById('costiChevron').classList.remove('open');
+        document.getElementById('ricaviSubmenu').classList.remove('open');
+        document.getElementById('ricaviChevron').classList.remove('open');
       }
     });
+
+    function toggleRicaviMenu() {
+      if (sidebar.classList.contains('sidebar-collapsed')) return;
+      const submenu = document.getElementById('ricaviSubmenu');
+      const chevron = document.getElementById('ricaviChevron');
+      const isOpen = submenu.classList.contains('open');
+      submenu.classList.toggle('open', !isOpen);
+      chevron.classList.toggle('open', !isOpen);
+      localStorage.setItem('ricaviMenuOpen', String(!isOpen));
+    }
 
     function toggleCostiMenu() {
       if (sidebar.classList.contains('sidebar-collapsed')) return;
@@ -215,8 +239,15 @@
       localStorage.setItem('costiMenuOpen', String(!isOpen));
     }
 
+    // Auto-open ricavi submenu
+    const ricaviChildActive = {{ 'true' if request.endpoint in ['ricavi','clienti','aggiorna_settore_cliente'] else 'false' }};
+    if ((ricaviChildActive || localStorage.getItem('ricaviMenuOpen') === 'true') && !sidebar.classList.contains('sidebar-collapsed')) {
+      document.getElementById('ricaviSubmenu').classList.add('open');
+      document.getElementById('ricaviChevron').classList.add('open');
+    }
+
     // Auto-open submenu if child page is active or was left open
-    const costiChildActive = {{ 'true' if request.endpoint in ['dashboard_costi','costi_fissi','costi_variabili','finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro','fatture_passive','aggiungi_fattura_passiva','toggle_pagato_fornitore','toggle_ritenuta_versata','elimina_fattura_passiva'] else 'false' }};
+    const costiChildActive ={{ 'true' if request.endpoint in ['dashboard_costi','costi_fissi','costi_variabili','finanziamenti','nuovo_finanziamento','elimina_finanziamento','nuova_rata_finanziamento','elimina_rata_finanziamento','nuovo_piano_rientro','elimina_piano_rientro','nuova_rata_piano_rientro','elimina_rata_piano_rientro','fatture_passive','aggiungi_fattura_passiva','toggle_pagato_fornitore','toggle_ritenuta_versata','elimina_fattura_passiva'] else 'false' }};
     if ((costiChildActive || localStorage.getItem('costiMenuOpen') === 'true') && !sidebar.classList.contains('sidebar-collapsed')) {
       document.getElementById('costiSubmenu').classList.add('open');
       document.getElementById('costiChevron').classList.add('open');
