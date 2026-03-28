@@ -4502,16 +4502,47 @@ def target_page():
                 totale += float(r['importo']) / 1.22
         return round(totale, 2)
 
+    def entrate_nette_per_mese(c, anno_str):
+        rows = c.execute("""
+            SELECT CAST(SUBSTRING(data FROM 6 FOR 2) AS INTEGER) as mese,
+                   importo, LOWER(descrizione) as desc_lower
+            FROM movimenti
+            WHERE tipo = 'entrata'
+              AND LEFT(data, 4) = %s
+              AND data IS NOT NULL
+        """, (anno_str,)).fetchall()
+        mesi = {i: 0.0 for i in range(1, 13)}
+        for r in rows:
+            if 'stripe' in (r['desc_lower'] or '') or 'paypal' in (r['desc_lower'] or ''):
+                mesi[r['mese']] += float(r['importo'])
+            else:
+                mesi[r['mese']] += float(r['importo']) / 1.22
+        return {m: round(v, 2) for m, v in mesi.items()}
+
     data_oggi = today.isoformat()
     data_scorso = f"{anno_scorso}-{today.month:02d}-{today.day:02d}"
 
     ytd_corrente = entrate_nette_periodo(conn, str(anno), data_oggi)
     ytd_scorso   = entrate_nette_periodo(conn, str(anno_scorso), data_scorso)
 
-    row = conn.execute(
-        "SELECT importo FROM target_annuale WHERE anno = %s", (anno,)
+    storico_mesi = entrate_nette_per_mese(conn, str(anno_scorso))
+    reale_mesi   = entrate_nette_per_mese(conn, str(anno))
+    totale_storico = sum(storico_mesi.values())
+    stagionalita = {
+        m: round(storico_mesi[m] / totale_storico * 100, 1) if totale_storico > 0 else 0.0
+        for m in range(1, 13)
+    }
+
+    row_ta = conn.execute(
+        "SELECT importo, note FROM target_annuale WHERE anno = %s", (anno,)
     ).fetchone()
-    target_importo = float(row['importo']) if row else None
+    target_importo = float(row_ta['importo']) if row_ta else None
+    note_anno = (row_ta['note'] or '') if row_ta else ''
+
+    rows_tm = conn.execute(
+        "SELECT mese, importo FROM target_mensile WHERE anno = %s", (anno,)
+    ).fetchall()
+    target_mesi = {r['mese']: round(float(r['importo']), 2) for r in rows_tm}
 
     mesi_rimanenti = max(1, 12 - today.month + (1 if today.day < 15 else 0))
     if target_importo:
@@ -4532,8 +4563,12 @@ def target_page():
     ).fetchall()
     conn.close()
 
+    nomi_mesi = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                 'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
+
     return render_template("target.html",
         anno=anno,
+        anno_scorso=anno_scorso,
         ytd_corrente=ytd_corrente,
         ytd_scorso=ytd_scorso,
         target_importo=target_importo,
@@ -4543,9 +4578,15 @@ def target_page():
         var_yoy=var_yoy,
         mesi_rimanenti=mesi_rimanenti,
         data_riferimento=data_oggi,
-        anno_scorso=anno_scorso,
         storico=storico,
         today=today,
+        storico_mesi=storico_mesi,
+        reale_mesi=reale_mesi,
+        target_mesi=target_mesi,
+        stagionalita=stagionalita,
+        totale_storico=totale_storico,
+        note_anno=note_anno,
+        nomi_mesi=nomi_mesi,
     )
 
 
@@ -4560,6 +4601,32 @@ def target_salva():
         VALUES (%s, %s)
         ON CONFLICT (anno) DO UPDATE SET importo = EXCLUDED.importo
     """, (anno, importo))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("target_page"))
+
+
+@app.route("/target/budget-mensile", methods=["POST"])
+@login_required
+def target_budget_mensile():
+    anno = int(request.form.get("anno"))
+    note = request.form.get("note", "")
+    conn = get_connection()
+    conn.execute(
+        "UPDATE target_annuale SET note = %s WHERE anno = %s", (note, anno)
+    )
+    for mese in range(1, 13):
+        val = request.form.get(f"mese_{mese}", "").strip()
+        if val:
+            try:
+                importo = float(val)
+                conn.execute("""
+                    INSERT INTO target_mensile (anno, mese, importo)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (anno, mese) DO UPDATE SET importo = EXCLUDED.importo
+                """, (anno, mese, importo))
+            except ValueError:
+                pass
     conn.commit()
     conn.close()
     return redirect(url_for("target_page"))

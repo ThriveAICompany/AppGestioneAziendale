@@ -197,7 +197,19 @@ def init_db():
             id SERIAL PRIMARY KEY,
             anno INTEGER NOT NULL UNIQUE,
             importo REAL NOT NULL,
+            note TEXT DEFAULT '',
             creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+    c.execute("ALTER TABLE target_annuale ADD COLUMN IF NOT EXISTS note TEXT DEFAULT ''")
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS target_mensile (
+            id SERIAL PRIMARY KEY,
+            anno INTEGER NOT NULL,
+            mese INTEGER NOT NULL CHECK(mese BETWEEN 1 AND 12),
+            importo REAL NOT NULL,
+            UNIQUE(anno, mese)
         )
     """)
 
