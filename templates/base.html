@@ -30,7 +30,7 @@
         </li>
 
         <li class="nav-group">
-          <div class="sidebar-item nav-parent {% if request.endpoint in ['ricavi','clienti','aggiorna_settore_cliente'] %}active{% endif %}"
+          <div class="sidebar-item nav-parent {% if request.endpoint in ['ricavi','clienti','nuovo_settore_cliente','elimina_settore_cliente','nuovo_cliente','modifica_cliente','elimina_cliente'] %}active{% endif %}"
                data-label="Ricavi"
                onclick="toggleRicaviMenu()">
             <i data-lucide="table-2" class="sidebar-icon"></i>
@@ -50,7 +50,7 @@
             </li>
             <li>
               <a href="{{ url_for('clienti') }}"
-                 class="sidebar-item nav-subitem {% if request.endpoint in ['clienti','aggiorna_settore_cliente'] %}active{% endif %}"
+                 class="sidebar-item nav-subitem {% if request.endpoint in ['clienti','nuovo_settore_cliente','elimina_settore_cliente','nuovo_cliente','modifica_cliente','elimina_cliente'] %}active{% endif %}"
                  data-label="Clienti">
                 <span class="nav-subitem-dot"></span>
                 <span class="sidebar-label">Clienti</span>
@@ -240,7 +240,7 @@
     }
 
     // Auto-open ricavi submenu
-    const ricaviChildActive = {{ 'true' if request.endpoint in ['ricavi','clienti','aggiorna_settore_cliente'] else 'false' }};
+    const ricaviChildActive = {{ 'true' if request.endpoint in ['ricavi','clienti','nuovo_settore_cliente','elimina_settore_cliente','nuovo_cliente','modifica_cliente','elimina_cliente'] else 'false' }};
     if ((ricaviChildActive || localStorage.getItem('ricaviMenuOpen') === 'true') && !sidebar.classList.contains('sidebar-collapsed')) {
       document.getElementById('ricaviSubmenu').classList.add('open');
       document.getElementById('ricaviChevron').classList.add('open');

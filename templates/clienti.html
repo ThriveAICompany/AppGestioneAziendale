@@ -1,238 +1,204 @@
 {% extends "base.html" %}
-{% block title %}Valore Clienti{% endblock %}
+{% block title %}Clienti{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1 class="page-title">Valore Clienti</h1>
-</div>
-
-<!-- KPI strip -->
-<div class="kpi-grid" style="margin-bottom:1.5rem">
-  <div class="kpi-card">
-    <div class="kpi-label">
-      Clienti totali
-      <div class="kpi-icon"><i data-lucide="users"></i></div>
-    </div>
-    <div class="kpi-value">{{ clienti_list|length }}</div>
-    <div class="kpi-trend">
-      <span class="trend-sub">con almeno un contratto</span>
-    </div>
-  </div>
-
-  <div class="kpi-card">
-    <div class="kpi-label">
-      Fatturato incassato
-      <div class="kpi-icon"><i data-lucide="banknote"></i></div>
-    </div>
-    <div class="kpi-value">€ {{ totale_incassato|format_eur }}</div>
-    <div class="kpi-trend">
-      <span class="trend-sub">somma incassi tutti i clienti</span>
-    </div>
-  </div>
-
-  <div class="kpi-card">
-    <div class="kpi-label">
-      Valore contratti totale
-      <div class="kpi-icon"><i data-lucide="file-text"></i></div>
-    </div>
-    <div class="kpi-value">€ {{ totale_contratti|format_eur }}</div>
-    <div class="kpi-trend">
-      <span class="trend-sub">importo lordo contratti</span>
-    </div>
-  </div>
-</div>
-
-<!-- Tabella ranking -->
-{% if clienti_list %}
-<table class="table" id="tabellaClienti">
-  <thead>
-    <tr>
-      <th style="width:2.5rem">#</th>
-      <th>Cliente</th>
-      <th>Settore</th>
-      <th>Fatturato incassato</th>
-      <th>Valore contratti</th>
-      <th>Contratti attivi</th>
-      <th style="width:160px"></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% set max_inc = clienti_list[0].fatturato_incassato if clienti_list[0].fatturato_incassato > 0 else 1 %}
-    {% for cl in clienti_list %}
-    <tr class="cliente-row" data-settore="{{ cl.settore }}">
-      <td style="color:var(--text-muted);font-weight:600">{{ loop.index }}</td>
-      <td>
-        <strong>{{ cl.nome }}</strong>
-        {% if cl.email %}<div style="font-size:.75rem;color:var(--text-muted)">{{ cl.email }}</div>{% endif %}
-        <!-- barra peso relativo -->
-        {% if cl.fatturato_incassato > 0 %}
-        <div style="margin-top:.3rem;height:3px;border-radius:2px;background:var(--border);overflow:hidden">
-          <div style="height:100%;border-radius:2px;background:var(--accent);width:{{ (cl.fatturato_incassato / max_inc * 100)|int }}%"></div>
-        </div>
-        {% endif %}
-      </td>
-      <td>
-        <span class="badge settore-badge" data-settore="{{ cl.settore }}" id="badge-{{ cl.id }}">{{ cl.settore }}</span>
-        <button class="btn btn-sm btn-secondary btn-icon" style="margin-left:.3rem" onclick="apriEditSettore({{ cl.id }}, '{{ cl.settore }}')" title="Modifica settore"><i data-lucide="pencil"></i></button>
-      </td>
-      <td>
-        {% if cl.fatturato_incassato > 0 %}
-        <strong class="positivo">€ {{ cl.fatturato_incassato|format_eur }}</strong>
-        {% else %}
-        <span style="color:var(--text-muted)">€ 0,00</span>
-        {% endif %}
-      </td>
-      <td>€ {{ cl.valore_contratti|format_eur }}</td>
-      <td>
-        {% if cl.contratti_attivi > 0 %}
-        <span class="badge badge-tipo-operativo">{{ cl.contratti_attivi }} attivi</span>
-        {% else %}
-        <span style="color:var(--text-muted)">{{ cl.contratti_totali }} totali</span>
-        {% endif %}
-      </td>
-      <td class="actions">
-        <div class="actions-wrap" id="edit-settore-{{ cl.id }}" style="display:none">
-          <select class="form-control" id="sel-{{ cl.id }}" style="font-size:.8rem;padding:.2rem .4rem">
-            {% for s in settori %}
-            <option value="{{ s }}" {% if s == cl.settore %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          <button class="btn btn-sm btn-primary" onclick="salvaSettore({{ cl.id }})">Ok</button>
-          <button class="btn btn-sm btn-secondary" onclick="chiudiEditSettore({{ cl.id }})">✕</button>
-        </div>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty-msg">Nessun cliente trovato. I clienti vengono creati automaticamente quando aggiungi un contratto in Ricavi.</p>
-{% endif %}
-
-<!-- Grafico distribuzione settori -->
-{% if settori_data %}
-<div class="form-card" style="margin-top:2rem">
-  <h3 style="margin-bottom:1rem">Fatturato incassato per settore</h3>
-  <canvas id="chartSettori" height="80"></canvas>
-</div>
-{% endif %}
-
-<!-- Modal edit settore (fallback senza JS avanzato) -->
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-// ---- Colori badge settori ----
-const SETTORE_COLORS = {
-  "IT / Software":             "#6366f1",
-  "Consulenza / Professionale":"#8b5cf6",
-  "Manifatturiero":            "#f59e0b",
-  "Retail / Commercio":        "#10b981",
-  "Healthcare / Sanità":       "#06b6d4",
-  "Finanza / Assicurazioni":   "#3b82f6",
-  "Immobiliare":               "#f97316",
-  "Hospitality / Turismo":     "#ec4899",
-  "Costruzioni / Edilizia":    "#84cc16",
-  "Media / Comunicazione":     "#a855f7",
-  "Agroalimentare":            "#22c55e",
-  "Energia / Utilities":       "#eab308",
-  "Logistica / Trasporti":     "#64748b",
-  "Education / Formazione":    "#14b8a6",
-  "Automotive":                "#ef4444",
-  "Altro":                     "#94a3b8",
-};
-
-function getSettoreColor(s) {
-  return SETTORE_COLORS[s] || "#94a3b8";
-}
-
-// Colora tutti i badge al caricamento
-document.querySelectorAll('.settore-badge').forEach(badge => {
-  const color = getSettoreColor(badge.dataset.settore);
-  badge.style.background = color + '22';
-  badge.style.color = color;
-  badge.style.border = '1px solid ' + color + '55';
-  badge.style.fontWeight = '600';
-  badge.style.fontSize = '.72rem';
-  badge.style.padding = '.15rem .5rem';
-  badge.style.borderRadius = '999px';
-});
-
-// ---- Edit settore inline ----
-function apriEditSettore(id, settoreAttuale) {
-  document.getElementById('edit-settore-' + id).style.display = 'flex';
-}
-
-function chiudiEditSettore(id) {
-  document.getElementById('edit-settore-' + id).style.display = 'none';
-}
-
-function salvaSettore(id) {
-  const sel = document.getElementById('sel-' + id);
-  const settore = sel.value;
-  const formData = new FormData();
-  formData.append('settore', settore);
-
-  fetch('/clienti/' + id + '/settore', { method: 'POST', body: formData })
-    .then(r => r.json())
-    .then(data => {
-      if (data.ok) {
-        const badge = document.getElementById('badge-' + id);
-        badge.textContent = settore;
-        badge.dataset.settore = settore;
-        const color = getSettoreColor(settore);
-        badge.style.background = color + '22';
-        badge.style.color = color;
-        badge.style.border = '1px solid ' + color + '55';
-        // aggiorna data-settore sulla riga per il filtro
-        badge.closest('tr').dataset.settore = settore;
-        chiudiEditSettore(id);
-      }
-    });
-}
-
-// ---- Grafico settori ----
-{% if settori_data %}
-const settoriLabels = {{ settori_data | map(attribute=0) | list | tojson }};
-const settoriValori = {{ settori_data | map(attribute=1) | list | tojson }};
-const settoriColors = settoriLabels.map(s => getSettoreColor(s));
-
-new Chart(document.getElementById('chartSettori'), {
-  type: 'bar',
-  data: {
-    labels: settoriLabels,
-    datasets: [{
-      label: 'Fatturato incassato (€)',
-      data: settoriValori,
-      backgroundColor: settoriColors.map(c => c + 'aa'),
-      borderColor: settoriColors,
-      borderWidth: 1,
-      borderRadius: 4,
-    }]
-  },
-  options: {
-    indexAxis: 'y',
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: ctx => '€ ' + ctx.raw.toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2})
-        }
-      }
-    },
-    scales: {
-      x: {
-        ticks: {
-          callback: v => '€ ' + v.toLocaleString('it-IT')
-        }
-      }
-    }
-  }
-});
-{% endif %}
-</script>
-
 <style>
-.actions-wrap { display: flex; gap: .3rem; align-items: center; flex-wrap: nowrap; }
+.fissi-card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden;
+}
+.fissi-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .9rem 1.2rem; cursor: pointer; gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.fissi-card-header:hover { background: var(--surface-hover, #f8fafa); }
+.fissi-card-title { font-weight: 700; font-size: .95rem; }
+.fissi-kpi-row { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+.fissi-kpi { text-align: right; }
+.fissi-kpi-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.fissi-kpi-val { font-size: .95rem; font-weight: 700; }
+.fissi-chevron { font-size: .75rem; color: var(--text-muted); transition: transform .2s; }
+.fissi-chevron.open { transform: rotate(90deg); }
+.fissi-body { display: none; padding: 1rem 1.2rem 1.2rem; }
+.fissi-body.open { display: block; }
+
+.fissi-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .5rem; }
+.fissi-table th {
+  text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem;
+  border-bottom: 2px solid var(--border);
+}
+.fissi-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); color: var(--text); }
+.fissi-table tr:last-child td { border-bottom: none; }
+.fissi-table .edit-row td { background: #f8fafa; border-bottom: 1px solid var(--border); }
+
+.form-fisso-inline {
+  display: none; margin-top: .75rem;
+  background: #f8fafa; border-radius: var(--radius-sm);
+  padding: .8rem 1rem; border: 1px solid var(--border);
+}
+.form-fisso-inline.open { display: block; }
+.form-rata-row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; }
+.form-rata-row .fg { display: flex; flex-direction: column; gap: .2rem; }
+.form-rata-row label { font-size: .72rem; font-weight: 600; color: var(--text-muted); }
+.form-rata-row input {
+  padding: .35rem .6rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: .85rem; width: 160px;
+  background: var(--surface); color: var(--text);
+}
+.form-rata-row input:focus { outline: none; border-color: var(--primary); }
 </style>
+
+<div class="page-header">
+  <h1 class="page-title">Clienti</h1>
+  <button class="btn btn-primary" onclick="toggleForm('form-nuovo-settore')">+ Aggiungi Settore</button>
+</div>
+
+<!-- Form nuovo settore -->
+<div id="form-nuovo-settore" class="form-card hidden">
+  <h3>Nuovo Settore</h3>
+  <form action="{{ url_for('nuovo_settore_cliente') }}" method="POST">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nome settore *</label>
+        <input type="text" name="nome" required placeholder="Es. E-commerce, SaaS, Legal..." />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Salva</button>
+      <button type="button" class="btn btn-secondary" onclick="toggleForm('form-nuovo-settore')">Annulla</button>
+    </div>
+  </form>
+</div>
+
+{% if not settori_list %}
+<p class="empty-msg">Nessun settore trovato.</p>
+{% endif %}
+
+{% for settore in settori_list %}
+<div class="fissi-card">
+  <div class="fissi-card-header" onclick="toggleCard('body-{{ settore.id }}', 'chev-{{ settore.id }}')">
+    <div class="fissi-card-title">{{ settore.nome }}</div>
+    <div class="fissi-kpi-row">
+      <div class="fissi-kpi">
+        <div class="fissi-kpi-label">Valore Contratti</div>
+        <div class="fissi-kpi-val negativo">€ {{ settore.totale|format_eur }}</div>
+      </div>
+      <div class="fissi-kpi">
+        <div class="fissi-kpi-label">Clienti</div>
+        <div class="fissi-kpi-val">{{ settore.clienti|length }}</div>
+      </div>
+      <span class="fissi-chevron" id="chev-{{ settore.id }}">▶</span>
+    </div>
+  </div>
+
+  <div class="fissi-body" id="body-{{ settore.id }}">
+
+    {% if settore.clienti %}
+    <table class="fissi-table">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Email</th>
+          <th>Valore Contratto</th>
+          <th style="width:90px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cl in settore.clienti %}
+        <tr id="row-{{ cl.id }}">
+          <td><strong>{{ cl.nome }}</strong></td>
+          <td>{{ cl.email or '—' }}</td>
+          <td><strong>€ {{ cl.valore_contratto|format_eur }}</strong></td>
+          <td>
+            <div class="actions-wrap">
+              <button class="btn btn-sm btn-secondary btn-icon" onclick="toggleEdit('edit-{{ cl.id }}')" title="Modifica"><i data-lucide="pencil"></i></button>
+              <form action="{{ url_for('elimina_cliente', cid=cl.id) }}" method="POST" style="display:contents"
+                    onsubmit="return confirm('Eliminare {{ cl.nome }}?')">
+                <button class="btn btn-sm btn-danger btn-icon" title="Elimina"><i data-lucide="trash-2"></i></button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <tr id="edit-{{ cl.id }}" class="edit-row hidden">
+          <td colspan="4">
+            <form action="{{ url_for('modifica_cliente', cid=cl.id) }}" method="POST">
+              <div class="form-rata-row">
+                <div class="fg">
+                  <label>Nome *</label>
+                  <input type="text" name="nome" value="{{ cl.nome }}" required />
+                </div>
+                <div class="fg">
+                  <label>Email</label>
+                  <input type="email" name="email" value="{{ cl.email or '' }}" />
+                </div>
+                <div class="fg">
+                  <label>Valore Contratto (€)</label>
+                  <input type="number" name="valore_contratto" value="{{ cl.valore_contratto }}" step="0.01" min="0" />
+                </div>
+                <input type="hidden" name="settore" value="{{ settore.nome }}" />
+                <button type="submit" class="btn btn-sm btn-primary">Aggiorna</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="toggleEdit('edit-{{ cl.id }}')">Annulla</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:.85rem;margin:.25rem 0 .75rem">Nessun cliente in questo settore.</p>
+    {% endif %}
+
+    <!-- Form nuovo cliente nel settore -->
+    <button class="btn btn-sm btn-secondary" style="margin-top:.75rem"
+            onclick="toggleForm('form-cl-{{ settore.id }}')">+ Aggiungi cliente</button>
+
+    <div id="form-cl-{{ settore.id }}" class="form-fisso-inline">
+      <form action="{{ url_for('nuovo_cliente') }}" method="POST">
+        <input type="hidden" name="settore" value="{{ settore.nome }}" />
+        <div class="form-rata-row">
+          <div class="fg">
+            <label>Nome *</label>
+            <input type="text" name="nome" required placeholder="Nome cliente / azienda" />
+          </div>
+          <div class="fg">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="email@azienda.it" />
+          </div>
+          <div class="fg">
+            <label>Valore Contratto (€)</label>
+            <input type="number" name="valore_contratto" value="0" step="0.01" min="0" style="width:140px" />
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary">Aggiungi</button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="toggleForm('form-cl-{{ settore.id }}')">Annulla</button>
+        </div>
+      </form>
+    </div>
+
+    {% if settore.clienti|length == 0 %}
+    <form action="{{ url_for('elimina_settore_cliente', sid=settore.id) }}" method="POST" style="margin-top:.75rem"
+          onsubmit="return confirm('Eliminare il settore {{ settore.nome }}?')">
+      <button type="submit" class="btn btn-sm btn-danger">Elimina settore</button>
+    </form>
+    {% endif %}
+
+  </div>
+</div>
+{% endfor %}
+
+<script>
+function toggleCard(bodyId, chevId) {
+  document.getElementById(bodyId).classList.toggle('open');
+  document.getElementById(chevId).classList.toggle('open');
+}
+function toggleForm(id) {
+  document.getElementById(id).classList.toggle('hidden');
+  document.getElementById(id).classList.toggle('open');
+}
+function toggleEdit(id) {
+  document.getElementById(id).classList.toggle('hidden');
+}
+</script>
 {% endblock %}

@@ -937,4 +937,27 @@ def _migrate(conn):
         )
     """)
 
+    # settori_clienti: tabella per settori merceologici (supporta settori vuoti)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS settori_clienti (
+            id SERIAL PRIMARY KEY,
+            nome TEXT NOT NULL UNIQUE,
+            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+    settori_default = [
+        'IT / Software', 'Consulenza / Professionale', 'Manifatturiero',
+        'Retail / Commercio', 'Healthcare / Sanità', 'Finanza / Assicurazioni',
+        'Immobiliare', 'Hospitality / Turismo', 'Costruzioni / Edilizia',
+        'Media / Comunicazione', 'Agroalimentare', 'Energia / Utilities',
+        'Logistica / Trasporti', 'Education / Formazione', 'Automotive', 'Altro',
+    ]
+    for s in settori_default:
+        c.execute("INSERT INTO settori_clienti (nome) VALUES (%s) ON CONFLICT DO NOTHING", (s,))
+
+    # clienti: aggiunta colonna valore_contratto
+    existing_cl = _get_columns(c, 'clienti')
+    if 'valore_contratto' not in existing_cl:
+        c.execute("ALTER TABLE clienti ADD COLUMN valore_contratto REAL DEFAULT 0")
+
     conn.commit()

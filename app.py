@@ -4662,63 +4662,110 @@ def target_budget_mensile():
 @login_required
 def clienti():
     conn = get_connection()
-    rows = conn.execute("""
-        SELECT
-            cl.id,
-            cl.nome,
-            COALESCE(cl.settore, 'Altro') AS settore,
-            cl.email,
-            (SELECT COALESCE(SUM(rc.importo), 0)
-             FROM rate_contratto rc
-             JOIN contratti c ON rc.contratto_id = c.id
-             WHERE c.cliente_id = cl.id AND rc.pagato = 1) AS fatturato_incassato,
-            (SELECT COALESCE(SUM(c.importo_totale), 0)
-             FROM contratti c
-             WHERE c.cliente_id = cl.id) AS valore_contratti,
-            (SELECT COUNT(*)
-             FROM contratti c
-             WHERE c.cliente_id = cl.id AND c.stato = 'attivo') AS contratti_attivi,
-            (SELECT COUNT(*)
-             FROM contratti c
-             WHERE c.cliente_id = cl.id) AS contratti_totali
-        FROM clienti cl
-        ORDER BY fatturato_incassato DESC
-    """).fetchall()
+    settori_rows = conn.execute(
+        "SELECT id, nome FROM settori_clienti ORDER BY nome"
+    ).fetchall()
+    clienti_rows = conn.execute(
+        "SELECT id, nome, email, COALESCE(settore, 'Altro') AS settore, COALESCE(valore_contratto, 0) AS valore_contratto FROM clienti ORDER BY nome"
+    ).fetchall()
     conn.close()
 
-    clienti_list = [dict(r) for r in rows]
+    clienti_by_settore = {}
+    for cl in clienti_rows:
+        s = cl['settore']
+        clienti_by_settore.setdefault(s, []).append(dict(cl))
 
-    # Aggregazione per settore
-    from collections import defaultdict
-    settori_map = defaultdict(float)
-    for c in clienti_list:
-        settori_map[c['settore']] += c['fatturato_incassato']
-    settori_data = sorted(settori_map.items(), key=lambda x: x[1], reverse=True)
+    settori_list = []
+    for s in settori_rows:
+        cl_list = clienti_by_settore.get(s['nome'], [])
+        settori_list.append({
+            'id': s['id'],
+            'nome': s['nome'],
+            'clienti': cl_list,
+            'totale': sum(c['valore_contratto'] for c in cl_list),
+        })
 
-    totale_incassato = sum(c['fatturato_incassato'] for c in clienti_list)
-    totale_contratti = sum(c['valore_contratti'] for c in clienti_list)
-
-    return render_template(
-        "clienti.html",
-        clienti_list=clienti_list,
-        settori_data=settori_data,
-        totale_incassato=totale_incassato,
-        totale_contratti=totale_contratti,
-        settori=SETTORI,
-    )
+    return render_template("clienti.html", settori_list=settori_list)
 
 
-@app.route("/clienti/<int:cid>/settore", methods=["POST"])
+@app.route("/clienti/settori/nuovo", methods=["POST"])
 @login_required
-def aggiorna_settore_cliente(cid):
-    settore = request.form.get("settore", "Altro")
-    if settore not in SETTORI:
-        settore = "Altro"
+def nuovo_settore_cliente():
+    nome = request.form.get("nome", "").strip()
+    if nome:
+        conn = get_connection()
+        conn.execute("INSERT INTO settori_clienti (nome) VALUES (%s) ON CONFLICT DO NOTHING", (nome,))
+        conn.commit()
+        conn.close()
+    return redirect(url_for("clienti"))
+
+
+@app.route("/clienti/settori/<int:sid>/elimina", methods=["POST"])
+@login_required
+def elimina_settore_cliente(sid):
     conn = get_connection()
-    conn.execute("UPDATE clienti SET settore = %s WHERE id = %s", (settore, cid))
+    row = conn.execute("SELECT nome FROM settori_clienti WHERE id = %s", (sid,)).fetchone()
+    if row:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM clienti WHERE settore = %s", (row['nome'],)
+        ).fetchone()[0]
+        if count == 0:
+            conn.execute("DELETE FROM settori_clienti WHERE id = %s", (sid,))
+            conn.commit()
+    conn.close()
+    return redirect(url_for("clienti"))
+
+
+@app.route("/clienti/nuovo", methods=["POST"])
+@login_required
+def nuovo_cliente():
+    nome = request.form.get("nome", "").strip()
+    email = request.form.get("email", "").strip()
+    settore = request.form.get("settore", "Altro")
+    try:
+        valore = float(request.form.get("valore_contratto", 0))
+    except ValueError:
+        valore = 0.0
+    if nome:
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO clienti (nome, email, settore, valore_contratto) VALUES (%s, %s, %s, %s)",
+            (nome, email or None, settore, valore)
+        )
+        conn.commit()
+        conn.close()
+    return redirect(url_for("clienti"))
+
+
+@app.route("/clienti/<int:cid>/modifica", methods=["POST"])
+@login_required
+def modifica_cliente(cid):
+    nome = request.form.get("nome", "").strip()
+    email = request.form.get("email", "").strip()
+    settore = request.form.get("settore", "Altro")
+    try:
+        valore = float(request.form.get("valore_contratto", 0))
+    except ValueError:
+        valore = 0.0
+    if nome:
+        conn = get_connection()
+        conn.execute(
+            "UPDATE clienti SET nome=%s, email=%s, settore=%s, valore_contratto=%s WHERE id=%s",
+            (nome, email or None, settore, valore, cid)
+        )
+        conn.commit()
+        conn.close()
+    return redirect(url_for("clienti"))
+
+
+@app.route("/clienti/<int:cid>/elimina", methods=["POST"])
+@login_required
+def elimina_cliente(cid):
+    conn = get_connection()
+    conn.execute("DELETE FROM clienti WHERE id = %s", (cid,))
     conn.commit()
     conn.close()
-    return jsonify({"ok": True, "settore": settore})
+    return redirect(url_for("clienti"))
 
 
 if __name__ == "__main__":
