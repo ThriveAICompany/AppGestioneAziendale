@@ -4558,6 +4558,13 @@ def target_page():
     if ytd_scorso > 0:
         var_yoy = round((ytd_corrente - ytd_scorso) / ytd_scorso * 100, 1)
 
+    mesi_restanti_lista = list(range(today.month, 13))
+    storico_rimanente = round(sum(storico_mesi[m] for m in mesi_restanti_lista), 2)
+    if storico_rimanente > 0 and balance_to_go is not None:
+        crescita_necessaria = round((balance_to_go - storico_rimanente) / storico_rimanente * 100, 1)
+    else:
+        crescita_necessaria = None
+
     storico = conn.execute(
         "SELECT anno, importo FROM target_annuale ORDER BY anno DESC"
     ).fetchall()
@@ -4587,6 +4594,8 @@ def target_page():
         totale_storico=totale_storico,
         note_anno=note_anno,
         nomi_mesi=nomi_mesi,
+        storico_rimanente=storico_rimanente,
+        crescita_necessaria=crescita_necessaria,
     )
 
 

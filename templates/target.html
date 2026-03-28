@@ -276,6 +276,27 @@
           <span>Mesi rimanenti</span>
           <strong>{{ mesi_rimanenti }}</strong>
         </div>
+        {% if crescita_necessaria is not none %}
+        <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0">
+        <div class="tgt-card-label" style="margin-bottom:0.4rem">È realistico?</div>
+        <div class="tgt-row">
+          <span>{{ anno_scorso }} (stessi mesi)</span>
+          <strong>{{ storico_rimanente|format_eur }} €</strong>
+        </div>
+        <div class="tgt-row">
+          <span>Crescita necessaria</span>
+          <strong>{% if crescita_necessaria >= 0 %}+{{ crescita_necessaria }}%{% else %}{{ crescita_necessaria }}%{% endif %} vs {{ anno_scorso }}</strong>
+        </div>
+        {% if crescita_necessaria <= 0 %}
+          <span class="tgt-badge badge-green">Obiettivo conservativo</span>
+        {% elif crescita_necessaria <= 10 %}
+          <span class="tgt-badge badge-green">Obiettivo raggiungibile</span>
+        {% elif crescita_necessaria <= 25 %}
+          <span class="tgt-badge" style="background:#fff8e1;color:#f57c00;font-size:0.78rem;font-weight:700;padding:0.2rem 0.55rem;border-radius:999px;margin-top:0.4rem;display:inline-block">Sotto pressione</span>
+        {% else %}
+          <span class="tgt-badge badge-red">Alta sfida — rivedere le variabili</span>
+        {% endif %}
+        {% endif %}
       {% endif %}
     {% else %}
       <div class="tgt-val" style="color:#bbb;font-size:1.1rem">—</div>
