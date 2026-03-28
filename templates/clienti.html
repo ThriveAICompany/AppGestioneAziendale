@@ -4,14 +4,6 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">Valore Clienti</h1>
-  <div style="display:flex;gap:.5rem;align-items:center">
-    <select id="filtroSettore" class="form-control" style="min-width:180px" onchange="filtraSettore(this.value)">
-      <option value="">Tutti i settori</option>
-      {% for settore in settori %}
-      <option value="{{ settore }}">{{ settore }}</option>
-      {% endfor %}
-    </select>
-  </div>
 </div>
 
 <!-- KPI strip -->
@@ -164,13 +156,6 @@ document.querySelectorAll('.settore-badge').forEach(badge => {
   badge.style.padding = '.15rem .5rem';
   badge.style.borderRadius = '999px';
 });
-
-// ---- Filtro settore ----
-function filtraSettore(val) {
-  document.querySelectorAll('.cliente-row').forEach(row => {
-    row.style.display = (!val || row.dataset.settore === val) ? '' : 'none';
-  });
-}
 
 // ---- Edit settore inline ----
 function apriEditSettore(id, settoreAttuale) {
