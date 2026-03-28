@@ -23,15 +23,22 @@
 .fissi-body { display: none; padding: 1rem 1.2rem 1.2rem; }
 .fissi-body.open { display: block; }
 
-.fissi-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .5rem; }
-.fissi-table th {
+.cl-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .5rem; }
+.cl-table th {
   text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem;
   border-bottom: 2px solid var(--border);
 }
-.fissi-table td { padding: .45rem .6rem; border-bottom: 1px solid var(--border); color: var(--text); }
-.fissi-table tr:last-child td { border-bottom: none; }
-.fissi-table .edit-row td { background: #f8fafa; border-bottom: 1px solid var(--border); }
+.cl-table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border); color: var(--text); }
+.cl-table tr:last-child td { border-bottom: none; }
+
+/* Azioni on-hover */
+.cl-table .cl-actions { display: flex; gap: .3rem; opacity: 0; transition: opacity .15s; justify-content: flex-end; }
+.cl-table tr:hover .cl-actions { opacity: 1; }
+
+/* Edit row */
+.cl-table .edit-row { background: #f8fafa; }
+.cl-table .edit-row td { border-bottom: 1px solid var(--border); }
 
 .form-fisso-inline {
   display: none; margin-top: .75rem;
@@ -72,10 +79,6 @@
   </form>
 </div>
 
-{% if not settori_list %}
-<p class="empty-msg">Nessun settore trovato.</p>
-{% endif %}
-
 {% for settore in settori_list %}
 <div class="fissi-card">
   <div class="fissi-card-header" onclick="toggleCard('body-{{ settore.id }}', 'chev-{{ settore.id }}')">
@@ -96,23 +99,21 @@
   <div class="fissi-body" id="body-{{ settore.id }}">
 
     {% if settore.clienti %}
-    <table class="fissi-table">
+    <table class="cl-table">
       <thead>
         <tr>
           <th>Cliente</th>
-          <th>Email</th>
-          <th>Valore Contratto</th>
-          <th style="width:90px"></th>
+          <th style="text-align:right">Valore Contratto</th>
+          <th style="width:80px"></th>
         </tr>
       </thead>
       <tbody>
         {% for cl in settore.clienti %}
         <tr id="row-{{ cl.id }}">
           <td><strong>{{ cl.nome }}</strong></td>
-          <td>{{ cl.email or '—' }}</td>
-          <td><strong>€ {{ cl.valore_contratto|format_eur }}</strong></td>
+          <td style="text-align:right"><strong>€ {{ cl.valore_contratto|format_eur }}</strong></td>
           <td>
-            <div class="actions-wrap">
+            <div class="cl-actions">
               <button class="btn btn-sm btn-secondary btn-icon" onclick="toggleEdit('edit-{{ cl.id }}')" title="Modifica"><i data-lucide="pencil"></i></button>
               <form action="{{ url_for('elimina_cliente', cid=cl.id) }}" method="POST" style="display:contents"
                     onsubmit="return confirm('Eliminare {{ cl.nome }}?')">
@@ -122,7 +123,7 @@
           </td>
         </tr>
         <tr id="edit-{{ cl.id }}" class="edit-row hidden">
-          <td colspan="4">
+          <td colspan="3">
             <form action="{{ url_for('modifica_cliente', cid=cl.id) }}" method="POST">
               <div class="form-rata-row">
                 <div class="fg">
@@ -130,12 +131,8 @@
                   <input type="text" name="nome" value="{{ cl.nome }}" required />
                 </div>
                 <div class="fg">
-                  <label>Email</label>
-                  <input type="email" name="email" value="{{ cl.email or '' }}" />
-                </div>
-                <div class="fg">
                   <label>Valore Contratto (€)</label>
-                  <input type="number" name="valore_contratto" value="{{ cl.valore_contratto }}" step="0.01" min="0" />
+                  <input type="number" name="valore_contratto" value="{{ cl.valore_contratto }}" step="0.01" min="0" style="width:140px" />
                 </div>
                 <input type="hidden" name="settore" value="{{ settore.nome }}" />
                 <button type="submit" class="btn btn-sm btn-primary">Aggiorna</button>
@@ -151,7 +148,6 @@
     <p style="color:var(--text-muted);font-size:.85rem;margin:.25rem 0 .75rem">Nessun cliente in questo settore.</p>
     {% endif %}
 
-    <!-- Form nuovo cliente nel settore -->
     <button class="btn btn-sm btn-secondary" style="margin-top:.75rem"
             onclick="toggleForm('form-cl-{{ settore.id }}')">+ Aggiungi cliente</button>
 
@@ -162,10 +158,6 @@
           <div class="fg">
             <label>Nome *</label>
             <input type="text" name="nome" required placeholder="Nome cliente / azienda" />
-          </div>
-          <div class="fg">
-            <label>Email</label>
-            <input type="email" name="email" placeholder="email@azienda.it" />
           </div>
           <div class="fg">
             <label>Valore Contratto (€)</label>
@@ -188,14 +180,19 @@
 </div>
 {% endfor %}
 
+{% if not settori_list %}
+<p class="empty-msg">Nessun settore trovato.</p>
+{% endif %}
+
 <script>
 function toggleCard(bodyId, chevId) {
   document.getElementById(bodyId).classList.toggle('open');
   document.getElementById(chevId).classList.toggle('open');
 }
 function toggleForm(id) {
-  document.getElementById(id).classList.toggle('hidden');
-  document.getElementById(id).classList.toggle('open');
+  const el = document.getElementById(id);
+  el.classList.toggle('hidden');
+  el.classList.toggle('open');
 }
 function toggleEdit(id) {
   document.getElementById(id).classList.toggle('hidden');

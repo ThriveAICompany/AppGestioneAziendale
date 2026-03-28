@@ -960,4 +960,15 @@ def _migrate(conn):
     if 'valore_contratto' not in existing_cl:
         c.execute("ALTER TABLE clienti ADD COLUMN valore_contratto REAL DEFAULT 0")
 
+    # Popola valore_contratto per clienti esistenti con contratti (solo se ancora a 0)
+    c.execute("""
+        UPDATE clienti
+        SET valore_contratto = (
+            SELECT COALESCE(SUM(importo_totale), 0)
+            FROM contratti
+            WHERE contratti.cliente_id = clienti.id
+        )
+        WHERE COALESCE(valore_contratto, 0) = 0
+    """)
+
     conn.commit()

@@ -4666,7 +4666,7 @@ def clienti():
         "SELECT id, nome FROM settori_clienti ORDER BY nome"
     ).fetchall()
     clienti_rows = conn.execute(
-        "SELECT id, nome, email, COALESCE(settore, 'Altro') AS settore, COALESCE(valore_contratto, 0) AS valore_contratto FROM clienti ORDER BY nome"
+        "SELECT id, nome, COALESCE(settore, 'Altro') AS settore, COALESCE(valore_contratto, 0) AS valore_contratto FROM clienti ORDER BY nome"
     ).fetchall()
     conn.close()
 
@@ -4684,6 +4684,8 @@ def clienti():
             'clienti': cl_list,
             'totale': sum(c['valore_contratto'] for c in cl_list),
         })
+
+    settori_list.sort(key=lambda x: len(x['clienti']), reverse=True)
 
     return render_template("clienti.html", settori_list=settori_list)
 
@@ -4720,7 +4722,6 @@ def elimina_settore_cliente(sid):
 @login_required
 def nuovo_cliente():
     nome = request.form.get("nome", "").strip()
-    email = request.form.get("email", "").strip()
     settore = request.form.get("settore", "Altro")
     try:
         valore = float(request.form.get("valore_contratto", 0))
@@ -4729,8 +4730,8 @@ def nuovo_cliente():
     if nome:
         conn = get_connection()
         conn.execute(
-            "INSERT INTO clienti (nome, email, settore, valore_contratto) VALUES (%s, %s, %s, %s)",
-            (nome, email or None, settore, valore)
+            "INSERT INTO clienti (nome, settore, valore_contratto) VALUES (%s, %s, %s)",
+            (nome, settore, valore)
         )
         conn.commit()
         conn.close()
@@ -4741,7 +4742,6 @@ def nuovo_cliente():
 @login_required
 def modifica_cliente(cid):
     nome = request.form.get("nome", "").strip()
-    email = request.form.get("email", "").strip()
     settore = request.form.get("settore", "Altro")
     try:
         valore = float(request.form.get("valore_contratto", 0))
@@ -4750,8 +4750,8 @@ def modifica_cliente(cid):
     if nome:
         conn = get_connection()
         conn.execute(
-            "UPDATE clienti SET nome=%s, email=%s, settore=%s, valore_contratto=%s WHERE id=%s",
-            (nome, email or None, settore, valore, cid)
+            "UPDATE clienti SET nome=%s, settore=%s, valore_contratto=%s WHERE id=%s",
+            (nome, settore, valore, cid)
         )
         conn.commit()
         conn.close()
