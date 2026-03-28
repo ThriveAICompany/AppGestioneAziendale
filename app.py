@@ -4477,6 +4477,94 @@ def toggle_rata_piano_rientro(rid):
     return jsonify(result)
 
 
+@app.route("/target")
+@login_required
+def target_page():
+    conn = get_connection()
+    today = datetime.date.today()
+    anno = today.year
+    anno_scorso = anno - 1
+
+    def entrate_nette_periodo(c, anno_str, data_fine_str):
+        rows = c.execute("""
+            SELECT importo, LOWER(descrizione) as desc_lower
+            FROM movimenti
+            WHERE tipo = 'entrata'
+              AND LEFT(data, 4) = %s
+              AND data <= %s
+              AND data IS NOT NULL
+        """, (anno_str, data_fine_str)).fetchall()
+        totale = 0.0
+        for r in rows:
+            if 'stripe' in (r['desc_lower'] or '') or 'paypal' in (r['desc_lower'] or ''):
+                totale += float(r['importo'])
+            else:
+                totale += float(r['importo']) / 1.22
+        return round(totale, 2)
+
+    data_oggi = today.isoformat()
+    data_scorso = f"{anno_scorso}-{today.month:02d}-{today.day:02d}"
+
+    ytd_corrente = entrate_nette_periodo(conn, str(anno), data_oggi)
+    ytd_scorso   = entrate_nette_periodo(conn, str(anno_scorso), data_scorso)
+
+    row = conn.execute(
+        "SELECT importo FROM target_annuale WHERE anno = %s", (anno,)
+    ).fetchone()
+    target_importo = float(row['importo']) if row else None
+
+    mesi_rimanenti = max(1, 12 - today.month + (1 if today.day < 15 else 0))
+    if target_importo:
+        balance_to_go = round(target_importo - ytd_corrente, 2)
+        ritmo_necessario = round(balance_to_go / mesi_rimanenti, 2)
+        perc_target = round(ytd_corrente / target_importo * 100, 1) if target_importo > 0 else 0
+    else:
+        balance_to_go = None
+        ritmo_necessario = None
+        perc_target = None
+
+    var_yoy = None
+    if ytd_scorso > 0:
+        var_yoy = round((ytd_corrente - ytd_scorso) / ytd_scorso * 100, 1)
+
+    storico = conn.execute(
+        "SELECT anno, importo FROM target_annuale ORDER BY anno DESC"
+    ).fetchall()
+    conn.close()
+
+    return render_template("target.html",
+        anno=anno,
+        ytd_corrente=ytd_corrente,
+        ytd_scorso=ytd_scorso,
+        target_importo=target_importo,
+        balance_to_go=balance_to_go,
+        ritmo_necessario=ritmo_necessario,
+        perc_target=perc_target,
+        var_yoy=var_yoy,
+        mesi_rimanenti=mesi_rimanenti,
+        data_riferimento=data_oggi,
+        anno_scorso=anno_scorso,
+        storico=storico,
+        today=today,
+    )
+
+
+@app.route("/target/salva", methods=["POST"])
+@login_required
+def target_salva():
+    anno = int(request.form.get("anno"))
+    importo = float(request.form.get("importo", 0))
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO target_annuale (anno, importo)
+        VALUES (%s, %s)
+        ON CONFLICT (anno) DO UPDATE SET importo = EXCLUDED.importo
+    """, (anno, importo))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("target_page"))
+
+
 if __name__ == "__main__":
     init_db()
     app.run(debug=True, port=5050)

@@ -139,6 +139,15 @@
 
 
         <li>
+          <a href="{{ url_for('target_page') }}"
+             class="sidebar-item {% if request.endpoint in ['target_page','target_salva'] %}active{% endif %}"
+             data-label="Target">
+            <i data-lucide="target" class="sidebar-icon"></i>
+            <span class="sidebar-label">Target</span>
+          </a>
+        </li>
+
+        <li>
           <a href="{{ url_for('cfo') }}"
              class="sidebar-item cfo-item {% if request.endpoint in ['cfo','cfo_chat'] %}active{% endif %}"
              data-label="Dashboard CEO ✦">

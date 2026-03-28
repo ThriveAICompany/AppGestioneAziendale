@@ -193,6 +193,15 @@ def init_db():
     """)
 
     c.execute("""
+        CREATE TABLE IF NOT EXISTS target_annuale (
+            id SERIAL PRIMARY KEY,
+            anno INTEGER NOT NULL UNIQUE,
+            importo REAL NOT NULL,
+            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        )
+    """)
+
+    c.execute("""
         CREATE TABLE IF NOT EXISTS impostazioni (
             chiave TEXT PRIMARY KEY,
             valore TEXT NOT NULL

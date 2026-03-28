@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Target {{ anno }}{% endblock %}
+
+{% block content %}
+<style>
+  .tgt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem; }
+  @media(max-width:760px) { .tgt-grid { grid-template-columns:1fr; } }
+
+  .tgt-card {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:1.2rem 1.4rem;
+  }
+  .tgt-card-label {
+    font-size:0.68rem;
+    color:var(--text-muted);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    margin-bottom:0.6rem;
+    font-weight:600;
+  }
+  .tgt-val {
+    font-size:1.6rem;
+    font-weight:800;
+    color:var(--text);
+    line-height:1;
+    margin-bottom:0.35rem;
+  }
+  .tgt-sub {
+    font-size:0.8rem;
+    color:var(--text-muted);
+    margin-top:0.2rem;
+  }
+  .tgt-badge {
+    display:inline-block;
+    font-size:0.78rem;
+    font-weight:700;
+    padding:0.2rem 0.55rem;
+    border-radius:999px;
+    margin-top:0.4rem;
+  }
+  .badge-green { background:#e8f5e9; color:#2e7d32; }
+  .badge-red   { background:#ffeaea; color:#b71c1c; }
+  .badge-muted { background:#f0f0f0; color:#666; }
+
+  /* Progress bar */
+  .tgt-progress-wrap {
+    background:#f0f0f0;
+    border-radius:999px;
+    height:8px;
+    margin:0.75rem 0 0.5rem;
+    overflow:hidden;
+  }
+  .tgt-progress-bar {
+    height:8px;
+    border-radius:999px;
+    background:var(--primary);
+    transition:width 0.4s ease;
+  }
+  .tgt-progress-bar.over { background:#e05252; }
+
+  .tgt-row {
+    display:flex;
+    justify-content:space-between;
+    font-size:0.82rem;
+    color:var(--text-muted);
+    margin-top:0.3rem;
+  }
+  .tgt-row strong { color:var(--text); }
+
+  /* Form inserimento target */
+  .tgt-form-card {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:1.2rem 1.4rem;
+    margin-bottom:1.5rem;
+    display:flex;
+    align-items:center;
+    gap:1rem;
+    flex-wrap:wrap;
+  }
+  .tgt-form-card label {
+    font-size:0.85rem;
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .tgt-form-card input[type=number] {
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:0.4rem 0.75rem;
+    font-size:0.95rem;
+    width:180px;
+  }
+  .tgt-form-card .btn { white-space:nowrap; }
+
+  /* Storico */
+  .storico-table { width:100%; border-collapse:collapse; font-size:0.83rem; }
+  .storico-table th, .storico-table td { border:1px solid var(--border); padding:0.4rem 0.75rem; }
+  .storico-table th { background:var(--surface); font-weight:600; text-align:left; }
+  .storico-table td:last-child { text-align:right; font-weight:700; }
+
+  .no-target-notice {
+    background:#fff8e1;
+    border:1px solid #ffe082;
+    border-radius:12px;
+    padding:1rem 1.25rem;
+    font-size:0.88rem;
+    color:#795548;
+    margin-bottom:1.5rem;
+  }
+</style>
+
+<div class="page-header">
+  <h1 class="page-title">Target {{ anno }}</h1>
+  <div class="actions">
+    <span style="font-size:0.8rem;color:var(--text-muted)">Dati al {{ data_riferimento }}</span>
+  </div>
+</div>
+
+<!-- Form inserimento/modifica target -->
+<div class="tgt-form-card">
+  <label for="importo_target">Target entrate nette {{ anno }}:</label>
+  <form method="POST" action="{{ url_for('target_salva') }}" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+    <input type="hidden" name="anno" value="{{ anno }}">
+    <input type="number" id="importo_target" name="importo" step="0.01" min="0"
+           value="{{ target_importo if target_importo else '' }}"
+           placeholder="es. 150000" required>
+    <button type="submit" class="btn btn-primary">
+      {% if target_importo %}Aggiorna target{% else %}Salva target{% endif %}
+    </button>
+  </form>
+  {% if target_importo %}
+  <span style="font-size:0.82rem;color:var(--text-muted)">Target attuale: <strong>{{ target_importo|format_eur }} €</strong></span>
+  {% endif %}
+</div>
+
+{% if not target_importo %}
+<div class="no-target-notice">
+  Inserisci il target annuale per visualizzare i KPI di avanzamento.
+</div>
+{% endif %}
+
+<!-- 3 KPI card -->
+<div class="tgt-grid">
+
+  <!-- Card 1: YTD vs Target -->
+  <div class="tgt-card">
+    <div class="tgt-card-label">Entrate nette YTD vs Target {{ anno }}</div>
+    <div class="tgt-val">{{ ytd_corrente|format_eur }} €</div>
+    {% if target_importo %}
+      <div class="tgt-sub">su {{ target_importo|format_eur }} € di obiettivo</div>
+      {% set perc_clip = [perc_target, 100]|min %}
+      <div class="tgt-progress-wrap">
+        <div class="tgt-progress-bar {% if perc_target > 100 %}over{% endif %}"
+             style="width:{{ perc_clip }}%"></div>
+      </div>
+      <div class="tgt-row">
+        <span>Completamento</span>
+        <strong>{{ perc_target }}%</strong>
+      </div>
+      {% if perc_target >= 100 %}
+        <span class="tgt-badge badge-green">Obiettivo raggiunto!</span>
+      {% elif perc_target >= 75 %}
+        <span class="tgt-badge badge-green">Ottimo ritmo</span>
+      {% elif perc_target >= 50 %}
+        <span class="tgt-badge badge-muted">In linea</span>
+      {% else %}
+        <span class="tgt-badge badge-red">Da accelerare</span>
+      {% endif %}
+    {% else %}
+      <div class="tgt-sub" style="color:#bbb;margin-top:0.5rem">— Target non impostato —</div>
+    {% endif %}
+  </div>
+
+  <!-- Card 2: vs Anno Scorso YTD -->
+  <div class="tgt-card">
+    <div class="tgt-card-label">Entrate nette vs {{ anno_scorso }} (stesso periodo)</div>
+    <div class="tgt-val">{{ ytd_corrente|format_eur }} €</div>
+    <div class="tgt-sub">{{ anno }}: da 1 gen a oggi</div>
+    <div class="tgt-row" style="margin-top:0.6rem">
+      <span>{{ anno_scorso }} (stessa data)</span>
+      <strong>{{ ytd_scorso|format_eur }} €</strong>
+    </div>
+    {% if var_yoy is not none %}
+      {% if var_yoy >= 0 %}
+        <span class="tgt-badge badge-green">+{{ var_yoy }}% vs {{ anno_scorso }}</span>
+      {% else %}
+        <span class="tgt-badge badge-red">{{ var_yoy }}% vs {{ anno_scorso }}</span>
+      {% endif %}
+    {% else %}
+      <span class="tgt-badge badge-muted">Nessun dato {{ anno_scorso }}</span>
+    {% endif %}
+  </div>
+
+  <!-- Card 3: Balance to Go -->
+  <div class="tgt-card">
+    <div class="tgt-card-label">Balance to Go — Ritmo necessario</div>
+    {% if target_importo %}
+      {% if balance_to_go <= 0 %}
+        <div class="tgt-val" style="color:#2e7d32">Obiettivo raggiunto</div>
+        <div class="tgt-sub">Hai già superato il target di {{ (balance_to_go * -1)|format_eur }} €</div>
+      {% else %}
+        <div class="tgt-val">{{ ritmo_necessario|format_eur }} €<span style="font-size:1rem;font-weight:500">/mese</span></div>
+        <div class="tgt-sub">Ritmo mensile necessario da oggi a dicembre</div>
+        <div class="tgt-row" style="margin-top:0.6rem">
+          <span>Manca ancora</span>
+          <strong>{{ balance_to_go|format_eur }} €</strong>
+        </div>
+        <div class="tgt-row">
+          <span>Mesi rimanenti</span>
+          <strong>{{ mesi_rimanenti }}</strong>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="tgt-val" style="color:#bbb;font-size:1.1rem">—</div>
+      <div class="tgt-sub" style="color:#bbb">Imposta il target per calcolare il ritmo necessario</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Storico target -->
+{% if storico %}
+<div class="tgt-card" style="margin-top:0">
+  <div class="tgt-card-label" style="margin-bottom:0.75rem">Storico target</div>
+  <table class="storico-table">
+    <thead>
+      <tr>
+        <th>Anno</th>
+        <th style="text-align:right">Target (entrate nette)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in storico %}
+      <tr>
+        <td>{{ s['anno'] }}</td>
+        <td>{{ s['importo']|format_eur }} €</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
