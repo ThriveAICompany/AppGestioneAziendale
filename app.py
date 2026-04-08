@@ -4140,10 +4140,10 @@ def proiezioni():
     for r in fissi_man_rows:
         dc_fissi_per_mese[int(r['mese'])] += float(r['totale'] or 0)
 
-    # Dashboard Costi variabili per mese
+    # Dashboard Costi variabili per mese — al netto IVA a credito (non inclusa nei ricavi)
     dc_var_per_mese = [0.0] * 13
     dc_var_rows = conn.execute("""
-        SELECT mese, SUM(uscita_cassa) as totale
+        SELECT mese, SUM(uscita_cassa - iva) as totale
         FROM costi_variabili
         WHERE anno = %s
         GROUP BY mese
