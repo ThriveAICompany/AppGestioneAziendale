@@ -1960,6 +1960,31 @@ def elimina_costo_fisso(id):
     return jsonify({'ok': True})
 
 
+@app.route("/costi-fissi/modifica/<int:id>", methods=["PUT"])
+@login_required
+def modifica_costo_fisso(id):
+    data = request.get_json()
+    obbligazione = data.get('obbligazione', '').strip()
+    data_val = data.get('data')
+    uscita_cassa = float(data.get('uscita_cassa', 0))
+    interessi = float(data.get('interessi', 0))
+    quota_capitale = float(data.get('quota_capitale', 0))
+
+    conn = get_connection()
+    row = conn.execute("SELECT id FROM costi_fissi_manuali WHERE id = %s", (id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'not found'}), 404
+    conn.execute("""
+        UPDATE costi_fissi_manuali
+        SET obbligazione=%s, data=%s, uscita_cassa=%s, interessi=%s, quota_capitale=%s
+        WHERE id=%s
+    """, (obbligazione, data_val, uscita_cassa, interessi, quota_capitale, id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
 @app.route("/costi-variabili")
 @login_required
 def costi_variabili():
@@ -2053,6 +2078,32 @@ def toggle_pagato_costo_variabile(id):
 def elimina_costo_variabile(id):
     conn = get_connection()
     conn.execute("DELETE FROM costi_variabili WHERE id = %s", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+@app.route("/costi-variabili/modifica/<int:id>", methods=["PUT"])
+@login_required
+def modifica_costo_variabile(id):
+    data = request.get_json()
+    nome = data.get('nome', '').strip()
+    categoria = data.get('categoria', 'altro').strip() or 'altro'
+    data_scadenza = data.get('data_scadenza')
+    uscita_cassa = float(data.get('uscita_cassa', 0))
+    iva = float(data.get('iva', 0))
+    quota_capitale = float(data.get('quota_capitale', 0))
+
+    conn = get_connection()
+    row = conn.execute("SELECT id FROM costi_variabili WHERE id = %s", (id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'not found'}), 404
+    conn.execute("""
+        UPDATE costi_variabili
+        SET nome=%s, categoria=%s, data_scadenza=%s, uscita_cassa=%s, iva=%s, quota_capitale=%s
+        WHERE id=%s
+    """, (nome, categoria, data_scadenza, uscita_cassa, iva, quota_capitale, id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})

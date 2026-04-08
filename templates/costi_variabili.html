@@ -175,19 +175,23 @@
       </thead>
       <tbody id="tbody-{{ mese.chiave }}">
         {% for v in mese.voci %}
-        <tr class="{% if v.pagato %}pagata{% elif v.data_scadenza < today_str %}scaduta{% endif %}" id="row-{{ v.id }}">
+        <tr class="{% if v.pagato %}pagata{% elif v.data_scadenza < today_str %}scaduta{% endif %}" id="row-{{ v.id }}"
+            data-uscita="{{ v.uscita_cassa }}" data-iva="{{ v.iva }}" data-cap="{{ v.quota_capitale }}"
+            data-nome="{{ v.nome or '' }}" data-cat="{{ v.categoria }}" data-data="{{ v.data_scadenza }}">
           <td>{{ v.nome or '—' }}</td>
           <td><span class="badge-tipo {{ v.categoria }}">{{ v.categoria }}</span></td>
           <td>{{ v.data_scadenza[8:10] }}/{{ v.data_scadenza[5:7] }}/{{ v.data_scadenza[0:4] }}</td>
-          <td style="text-align:right">€ {{ v.uscita_cassa|format_eur }}</td>
-          <td style="text-align:right;color:var(--text-muted)">{% if v.iva > 0 %}€ {{ v.iva|format_eur }}{% else %}—{% endif %}</td>
+          <td class="cell-uscita" style="text-align:right">€ {{ v.uscita_cassa|format_eur }}</td>
+          <td class="cell-iva" style="text-align:right;color:var(--text-muted)">{% if v.iva > 0 %}€ {{ v.iva|format_eur }}{% else %}—{% endif %}</td>
           <td style="text-align:right;color:var(--text-muted)">{% if v.quota_capitale > 0 %}€ {{ v.quota_capitale|format_eur }}{% else %}—{% endif %}</td>
           <td style="text-align:center">
             <button class="btn-pagata {% if v.pagato %}on{% endif %}"
                     onclick="togglePagata({{ v.id }}, '{{ mese.chiave }}', this)"
                     title="Segna pagata">✓</button>
           </td>
-          <td>
+          <td style="white-space:nowrap">
+            <button class="btn-icon" style="opacity:.4;font-size:.75rem;margin-right:.2rem"
+                    onclick="apriModificaVoce({{ v.id }}, '{{ mese.chiave }}')">✎</button>
             <button class="btn-icon" style="opacity:.4;font-size:.75rem"
                     onclick="eliminaVoce({{ v.id }}, '{{ mese.chiave }}')">✕</button>
           </td>
@@ -253,6 +257,62 @@
 </div>
 {% endfor %}
 
+<!-- Modal modifica costo variabile -->
+<div id="modal-modifica-var" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.5rem 1.8rem;width:min(560px,95vw);max-height:90vh;overflow-y:auto">
+    <h3 style="margin:0 0 1.2rem;font-size:1rem">Modifica costo</h3>
+    <input type="hidden" id="mod-var-id">
+    <input type="hidden" id="mod-var-chiave">
+    <input type="hidden" id="mod-var-old-uscita">
+    <input type="hidden" id="mod-var-old-iva">
+    <input type="hidden" id="mod-var-pagata">
+    <div class="form-rata-row" style="display:flex;flex-direction:column;gap:.8rem">
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+        <div class="fg" style="flex:1;min-width:150px">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Nome *</label>
+          <input type="text" id="mod-var-nome" style="width:100%;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+        <div class="fg">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Categoria</label>
+          <select id="mod-var-cat" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+            <option value="altro">altro</option>
+            <option value="affitto">affitto</option>
+            <option value="utilities">utilities</option>
+            <option value="personale">personale</option>
+            <option value="marketing">marketing</option>
+            <option value="software">software</option>
+            <option value="consulenza">consulenza</option>
+            <option value="banca">banca</option>
+            <option value="fiscale">fiscale</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Data scadenza *</label>
+          <input type="date" id="mod-var-data" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+        <div class="fg">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Uscita cassa (€) *</label>
+          <input type="number" id="mod-var-uscita" step="0.01" min="0" style="width:130px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+        <div class="fg">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">IVA (€)</label>
+          <input type="number" id="mod-var-iva" step="0.01" min="0" style="width:120px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+        <div class="fg">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Quota capitale (€)</label>
+          <input type="number" id="mod-var-cap" step="0.01" min="0" style="width:130px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:.6rem;margin-top:1.2rem;justify-content:flex-end">
+      <button class="btn btn-secondary btn-sm" onclick="chiudiModificaVar()">Annulla</button>
+      <button class="btn btn-primary btn-sm" onclick="salvaModificaVar()">Salva modifiche</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function toggleVar(bodyId, chevId) {
   document.getElementById(bodyId).classList.toggle('open');
@@ -265,6 +325,10 @@ function toggleForm(id) {
 
 function fmtEur(n) {
   return n.toLocaleString('it-IT', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+}
+
+function parseEur(s) {
+  return parseFloat(s.replace(/[€\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
 }
 
 async function salvaVoce(chiave, mese, anno) {
@@ -289,7 +353,6 @@ async function salvaVoce(chiave, mese, anno) {
 
   toggleForm('form-costo-' + chiave);
 
-  // Crea o recupera tbody
   let tbody = document.getElementById('tbody-' + chiave);
   if (!tbody) {
     const empty = document.getElementById('empty-' + chiave);
@@ -314,24 +377,31 @@ async function salvaVoce(chiave, mese, anno) {
   const dataFmt = d.substring(8,10) + '/' + d.substring(5,7) + '/' + d.substring(0,4);
   const tr = document.createElement('tr');
   tr.id = 'row-' + data.id;
+  tr.dataset.uscita = uscita;
+  tr.dataset.iva = iva;
+  tr.dataset.cap = cap;
+  tr.dataset.nome = nome;
+  tr.dataset.cat = cat;
+  tr.dataset.data = dataVal;
   tr.innerHTML = `
     <td>${nome || '—'}</td>
     <td><span class="badge-tipo ${cat}">${cat}</span></td>
     <td>${dataFmt}</td>
-    <td style="text-align:right">€ ${fmtEur(uscita)}</td>
-    <td style="text-align:right;color:var(--text-muted)">${iva > 0 ? '€ ' + fmtEur(iva) : '—'}</td>
+    <td class="cell-uscita" style="text-align:right">€ ${fmtEur(uscita)}</td>
+    <td class="cell-iva" style="text-align:right;color:var(--text-muted)">${iva > 0 ? '€ ' + fmtEur(iva) : '—'}</td>
     <td style="text-align:right;color:var(--text-muted)">${cap > 0 ? '€ ' + fmtEur(cap) : '—'}</td>
     <td style="text-align:center">
       <button class="btn-pagata" onclick="togglePagata(${data.id},'${chiave}',this)" title="Segna pagata">✓</button>
     </td>
-    <td>
+    <td style="white-space:nowrap">
+      <button class="btn-icon" style="opacity:.4;font-size:.75rem;margin-right:.2rem"
+              onclick="apriModificaVoce(${data.id},'${chiave}')">✎</button>
       <button class="btn-icon" style="opacity:.4;font-size:.75rem"
               onclick="eliminaVoce(${data.id},'${chiave}')">✕</button>
     </td>
   `;
   tbody.appendChild(tr);
 
-  // Azzera campi
   document.getElementById('af-nome-' + chiave).value = '';
   document.getElementById('af-uscita-' + chiave).value = '';
   document.getElementById('af-iva-' + chiave).value = '';
@@ -351,8 +421,7 @@ async function togglePagata(id, chiave, btn) {
   const row = document.getElementById('row-' + id);
   if (row) row.className = data.pagato ? 'pagata' : '';
 
-  const uscitaStr = row.cells[1].textContent.replace(/[€\s]/g, '').replace('.','').replace(',','.');
-  const uscita = parseFloat(uscitaStr) || 0;
+  const uscita = parseFloat(row.dataset.uscita) || 0;
   const delta = data.pagato ? uscita : -uscita;
   aggiornaKpiMesePagato(chiave, delta);
 }
@@ -360,10 +429,8 @@ async function togglePagata(id, chiave, btn) {
 async function eliminaVoce(id, chiave) {
   if (!confirm('Eliminare questo costo?')) return;
   const row = document.getElementById('row-' + id);
-  const uscitaStr = row.cells[1].textContent.replace(/[€\s]/g, '').replace('.','').replace(',','.');
-  const uscita = parseFloat(uscitaStr) || 0;
-  const ivaCell = row.cells[2].textContent.trim();
-  const iva = ivaCell === '—' ? 0 : parseFloat(ivaCell.replace(/[€\s]/g,'').replace('.','').replace(',','.')) || 0;
+  const uscita = parseFloat(row.dataset.uscita) || 0;
+  const iva = parseFloat(row.dataset.iva) || 0;
   const isPagata = row.querySelector('.btn-pagata').classList.contains('on');
 
   const res = await fetch('/costi-variabili/elimina/' + id, {method: 'POST'});
@@ -374,9 +441,86 @@ async function eliminaVoce(id, chiave) {
   aggiornaKpiMese(chiave, -uscita, isPagata ? -uscita : 0, -iva);
 }
 
+function apriModificaVoce(id, chiave) {
+  const row = document.getElementById('row-' + id);
+  document.getElementById('mod-var-id').value = id;
+  document.getElementById('mod-var-chiave').value = chiave;
+  document.getElementById('mod-var-old-uscita').value = row.dataset.uscita || 0;
+  document.getElementById('mod-var-old-iva').value = row.dataset.iva || 0;
+  document.getElementById('mod-var-pagata').value = row.querySelector('.btn-pagata').classList.contains('on') ? '1' : '0';
+  document.getElementById('mod-var-nome').value = row.dataset.nome || '';
+  document.getElementById('mod-var-cat').value = row.dataset.cat || 'altro';
+  document.getElementById('mod-var-data').value = row.dataset.data || '';
+  document.getElementById('mod-var-uscita').value = row.dataset.uscita || '';
+  document.getElementById('mod-var-iva').value = row.dataset.iva || '';
+  document.getElementById('mod-var-cap').value = row.dataset.cap || '';
+  const modal = document.getElementById('modal-modifica-var');
+  modal.style.display = 'flex';
+}
+
+function chiudiModificaVar() {
+  document.getElementById('modal-modifica-var').style.display = 'none';
+}
+
+async function salvaModificaVar() {
+  const id = document.getElementById('mod-var-id').value;
+  const chiave = document.getElementById('mod-var-chiave').value;
+  const nome = document.getElementById('mod-var-nome').value.trim();
+  const cat = document.getElementById('mod-var-cat').value;
+  const dataVal = document.getElementById('mod-var-data').value;
+  const uscita = parseFloat(document.getElementById('mod-var-uscita').value) || 0;
+  const iva = parseFloat(document.getElementById('mod-var-iva').value) || 0;
+  const cap = parseFloat(document.getElementById('mod-var-cap').value) || 0;
+  const oldUscita = parseFloat(document.getElementById('mod-var-old-uscita').value) || 0;
+  const oldIva = parseFloat(document.getElementById('mod-var-old-iva').value) || 0;
+  const isPagata = document.getElementById('mod-var-pagata').value === '1';
+
+  if (!nome) { alert('Inserisci un nome per il costo.'); return; }
+  if (!dataVal) { alert('Inserisci una data di scadenza.'); return; }
+  if (uscita <= 0) { alert('Inserisci un importo uscita cassa maggiore di zero.'); return; }
+
+  const res = await fetch('/costi-variabili/modifica/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({nome, categoria: cat, data_scadenza: dataVal, uscita_cassa: uscita, iva, quota_capitale: cap})
+  });
+  const data = await res.json();
+  if (!data.ok) { alert('Errore salvataggio'); return; }
+
+  // Aggiorna riga nel DOM
+  const row = document.getElementById('row-' + id);
+  const d = dataVal;
+  const dataFmt = d.substring(8,10) + '/' + d.substring(5,7) + '/' + d.substring(0,4);
+  row.dataset.uscita = uscita;
+  row.dataset.iva = iva;
+  row.dataset.cap = cap;
+  row.dataset.nome = nome;
+  row.dataset.cat = cat;
+  row.dataset.data = dataVal;
+  row.cells[0].textContent = nome || '—';
+  row.cells[1].innerHTML = `<span class="badge-tipo ${cat}">${cat}</span>`;
+  row.cells[2].textContent = dataFmt;
+  row.cells[3].textContent = '€ ' + fmtEur(uscita);
+  row.cells[4].textContent = iva > 0 ? '€ ' + fmtEur(iva) : '—';
+  row.cells[5].textContent = cap > 0 ? '€ ' + fmtEur(cap) : '—';
+
+  // Aggiorna KPI mese
+  const deltaUscita = uscita - oldUscita;
+  const deltaIva = iva - oldIva;
+  const deltaPagato = isPagata ? deltaUscita : 0;
+  aggiornaKpiMese(chiave, deltaUscita, deltaPagato, deltaIva);
+
+  chiudiModificaVar();
+}
+
+// Chiudi modal cliccando fuori
+document.getElementById('modal-modifica-var').addEventListener('click', function(e) {
+  if (e.target === this) chiudiModificaVar();
+});
+
 function aggiornaKpiMese(chiave, deltaUscita, deltaPagato, deltaIva) {
   function parseVal(id) {
-    const s = document.getElementById(id).textContent.replace(/[€\s]/g,'').replace('.','').replace(',','.');
+    const s = document.getElementById(id).textContent.replace(/[€\s]/g,'').replace(/\./g,'').replace(',','.');
     return parseFloat(s) || 0;
   }
   const tot = Math.max(0, parseVal('kpi-tot-' + chiave) + deltaUscita);

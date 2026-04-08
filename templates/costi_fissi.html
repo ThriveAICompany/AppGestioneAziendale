@@ -164,7 +164,11 @@
       <tbody id="tbody-{{ mese.chiave }}">
         {% for u in mese.rate %}
         <tr class="{% if u.pagato %}pagata{% elif u.data < today_str %}scaduta{% endif %}"
-            id="row-{{ u.tipo_tabella }}-{{ u.id }}">
+            id="row-{{ u.tipo_tabella }}-{{ u.id }}"
+            {% if u.tipo_tabella == 'manuale' %}
+            data-uscita="{{ u.importo }}" data-int="{{ u.quota_interessi }}" data-cap="{{ u.quota_capitale }}"
+            data-obblig="{{ u.nome }}" data-data="{{ u.data }}"
+            {% endif %}>
           <td>{{ u.data[8:10] }}/{{ u.data[5:7] }}/{{ u.data[0:4] }}</td>
           <td>{{ u.nome }}</td>
           <td class="cell-uscita" data-val="{{ u.importo }}" style="text-align:right">€ {{ u.importo|format_eur }}</td>
@@ -175,8 +179,10 @@
                     onclick="togglePagataFissa('{{ u.tipo_tabella }}', {{ u.id }}, '{{ mese.chiave }}', this)"
                     title="Segna pagata">✓</button>
           </td>
-          <td>
+          <td style="white-space:nowrap">
             {% if u.tipo_tabella == 'manuale' %}
+            <button class="btn-icon" style="opacity:.4;font-size:.75rem;margin-right:.2rem"
+                    onclick="apriModificaFisso({{ u.id }}, '{{ mese.chiave }}')">✎</button>
             <button class="btn-icon" style="opacity:.4;font-size:.75rem"
                     onclick="eliminaFisso({{ u.id }}, '{{ mese.chiave }}', this)">✕</button>
             {% endif %}
@@ -229,6 +235,48 @@
 </div>
 {% endfor %}
 
+<!-- Modal modifica costo fisso manuale -->
+<div id="modal-modifica-fisso" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.5rem 1.8rem;width:min(520px,95vw);max-height:90vh;overflow-y:auto">
+    <h3 style="margin:0 0 1.2rem;font-size:1rem">Modifica costo fisso</h3>
+    <input type="hidden" id="mod-fisso-id">
+    <input type="hidden" id="mod-fisso-chiave">
+    <input type="hidden" id="mod-fisso-old-uscita">
+    <input type="hidden" id="mod-fisso-old-int">
+    <input type="hidden" id="mod-fisso-pagata">
+    <div style="display:flex;flex-direction:column;gap:.8rem">
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:.2rem">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Data *</label>
+          <input type="date" id="mod-fisso-data" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+        <div style="flex:2;min-width:160px;display:flex;flex-direction:column;gap:.2rem">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Obbligazione *</label>
+          <input type="text" id="mod-fisso-obblig" style="width:100%;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:.2rem">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Uscita cassa (€) *</label>
+          <input type="number" id="mod-fisso-uscita" step="0.01" min="0" style="width:130px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.2rem">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Interessi (€)</label>
+          <input type="number" id="mod-fisso-int" step="0.01" min="0" style="width:120px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.2rem">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">Quota capitale (€)</label>
+          <input type="number" id="mod-fisso-cap" step="0.01" min="0" style="width:130px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:.6rem;margin-top:1.2rem;justify-content:flex-end">
+      <button class="btn btn-secondary btn-sm" onclick="chiudiModificaFisso()">Annulla</button>
+      <button class="btn btn-primary btn-sm" onclick="salvaModificaFisso()">Salva modifiche</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function toggleFissi(bodyId, chevId) {
   document.getElementById(bodyId).classList.toggle('open');
@@ -264,7 +312,6 @@ async function salvaFisso(chiave) {
 
   toggleFissiForm('form-fisso-' + chiave);
 
-  // Crea o recupera tbody
   let tbody = document.getElementById('tbody-' + chiave);
   if (!tbody) {
     const empty = document.getElementById('empty-' + chiave);
@@ -289,6 +336,11 @@ async function salvaFisso(chiave) {
   const dataFmt = d.substring(8,10) + '/' + d.substring(5,7) + '/' + d.substring(0,4);
   const tr = document.createElement('tr');
   tr.id = 'row-manuale-' + data.id;
+  tr.dataset.uscita = uscita;
+  tr.dataset.int = intVal;
+  tr.dataset.cap = cap;
+  tr.dataset.obblig = obblig;
+  tr.dataset.data = dataVal;
   tr.innerHTML = `
     <td>${dataFmt}</td>
     <td>${obblig}</td>
@@ -300,14 +352,15 @@ async function salvaFisso(chiave) {
               onclick="togglePagataFissa('manuale',${data.id},'${chiave}',this)"
               title="Segna pagata">✓</button>
     </td>
-    <td>
+    <td style="white-space:nowrap">
+      <button class="btn-icon" style="opacity:.4;font-size:.75rem;margin-right:.2rem"
+              onclick="apriModificaFisso(${data.id},'${chiave}')">✎</button>
       <button class="btn-icon" style="opacity:.4;font-size:.75rem"
               onclick="eliminaFisso(${data.id},'${chiave}',this)">✕</button>
     </td>
   `;
   tbody.appendChild(tr);
 
-  // Azzera campi
   document.getElementById('af-obblig-' + chiave).value = '';
   document.getElementById('af-uscita-' + chiave).value = '';
   document.getElementById('af-int-' + chiave).value = '';
@@ -336,6 +389,7 @@ async function eliminaFisso(id, chiave, btn) {
   if (!confirm('Eliminare questo costo?')) return;
   const row = document.getElementById('row-manuale-' + id);
   const uscita = parseFloat(row.querySelector('.cell-uscita').dataset.val) || 0;
+  const intVal = parseFloat(row.dataset.int) || 0;
   const isPagata = row.querySelector('.btn-pagata').classList.contains('on');
 
   const res = await fetch('/costi-fissi/elimina/' + id, {method: 'POST'});
@@ -343,12 +397,86 @@ async function eliminaFisso(id, chiave, btn) {
   if (!data.ok) { alert('Errore eliminazione'); return; }
 
   row.remove();
-  aggiornaKpiFisso(chiave, -uscita, 0, isPagata ? -uscita : 0);
+  aggiornaKpiFisso(chiave, -uscita, -intVal, isPagata ? -uscita : 0);
 }
+
+function apriModificaFisso(id, chiave) {
+  const row = document.getElementById('row-manuale-' + id);
+  document.getElementById('mod-fisso-id').value = id;
+  document.getElementById('mod-fisso-chiave').value = chiave;
+  document.getElementById('mod-fisso-old-uscita').value = row.dataset.uscita || 0;
+  document.getElementById('mod-fisso-old-int').value = row.dataset.int || 0;
+  document.getElementById('mod-fisso-pagata').value = row.querySelector('.btn-pagata').classList.contains('on') ? '1' : '0';
+  document.getElementById('mod-fisso-data').value = row.dataset.data || '';
+  document.getElementById('mod-fisso-obblig').value = row.dataset.obblig || '';
+  document.getElementById('mod-fisso-uscita').value = row.dataset.uscita || '';
+  document.getElementById('mod-fisso-int').value = row.dataset.int || '';
+  document.getElementById('mod-fisso-cap').value = row.dataset.cap || '';
+  const modal = document.getElementById('modal-modifica-fisso');
+  modal.style.display = 'flex';
+}
+
+function chiudiModificaFisso() {
+  document.getElementById('modal-modifica-fisso').style.display = 'none';
+}
+
+async function salvaModificaFisso() {
+  const id = document.getElementById('mod-fisso-id').value;
+  const chiave = document.getElementById('mod-fisso-chiave').value;
+  const dataVal = document.getElementById('mod-fisso-data').value;
+  const obblig = document.getElementById('mod-fisso-obblig').value.trim();
+  const uscita = parseFloat(document.getElementById('mod-fisso-uscita').value) || 0;
+  const intVal = parseFloat(document.getElementById('mod-fisso-int').value) || 0;
+  const cap = parseFloat(document.getElementById('mod-fisso-cap').value) || 0;
+  const oldUscita = parseFloat(document.getElementById('mod-fisso-old-uscita').value) || 0;
+  const oldInt = parseFloat(document.getElementById('mod-fisso-old-int').value) || 0;
+  const isPagata = document.getElementById('mod-fisso-pagata').value === '1';
+
+  if (!dataVal) { alert('Inserisci una data.'); return; }
+  if (!obblig)  { alert('Inserisci l\'obbligazione.'); return; }
+  if (uscita <= 0) { alert('Inserisci un importo uscita cassa maggiore di zero.'); return; }
+
+  const res = await fetch('/costi-fissi/modifica/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({data: dataVal, obbligazione: obblig, uscita_cassa: uscita, interessi: intVal, quota_capitale: cap})
+  });
+  const data = await res.json();
+  if (!data.ok) { alert('Errore salvataggio'); return; }
+
+  // Aggiorna riga nel DOM
+  const row = document.getElementById('row-manuale-' + id);
+  const d = dataVal;
+  const dataFmt = d.substring(8,10) + '/' + d.substring(5,7) + '/' + d.substring(0,4);
+  row.dataset.uscita = uscita;
+  row.dataset.int = intVal;
+  row.dataset.cap = cap;
+  row.dataset.obblig = obblig;
+  row.dataset.data = dataVal;
+  row.querySelector('.cell-uscita').dataset.val = uscita;
+  row.cells[0].textContent = dataFmt;
+  row.cells[1].textContent = obblig;
+  row.cells[2].textContent = '€ ' + fmtEur(uscita);
+  row.cells[3].textContent = intVal > 0 ? '€ ' + fmtEur(intVal) : '—';
+  row.cells[4].textContent = cap > 0 ? '€ ' + fmtEur(cap) : '—';
+
+  // Aggiorna KPI mese
+  const deltaUscita = uscita - oldUscita;
+  const deltaInt = intVal - oldInt;
+  const deltaPagato = isPagata ? deltaUscita : 0;
+  aggiornaKpiFisso(chiave, deltaUscita, deltaInt, deltaPagato);
+
+  chiudiModificaFisso();
+}
+
+// Chiudi modal cliccando fuori
+document.getElementById('modal-modifica-fisso').addEventListener('click', function(e) {
+  if (e.target === this) chiudiModificaFisso();
+});
 
 function aggiornaKpiFisso(chiave, deltaUscita, deltaInt, deltaPagato) {
   function parseVal(id) {
-    const s = document.getElementById(id).textContent.replace(/[€\s]/g,'').replace('.','').replace(',','.');
+    const s = document.getElementById(id).textContent.replace(/[€\s]/g,'').replace(/\./g,'').replace(',','.');
     return parseFloat(s) || 0;
   }
   const tot = Math.max(0, parseVal('kpi-ftot-' + chiave) + deltaUscita);
