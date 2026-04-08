@@ -4163,12 +4163,63 @@ def proiezioni():
         dc_fp_per_mese[r['mese']] += float(r['totale'] or 0)
 
     oggi = datetime.date.today()
+    mese_corrente = oggi.month
+
+    # ── Rinnovi probabili (50%) ─────────────────────────────────────────────────
+    # Contratti la cui ULTIMA rata scade nell'anno corrente, mese >= mese corrente
+    rinnovi_rows = conn.execute("""
+        SELECT
+            c.id as contratto_id,
+            c.importo_totale,
+            COUNT(rc.id) as num_rate,
+            c.importo_totale / NULLIF(COUNT(rc.id), 0) as importo_mensile,
+            MAX(rc.data_scadenza) as ultima_scadenza
+        FROM contratti c
+        JOIN rate_contratto rc ON rc.contratto_id = c.id
+        GROUP BY c.id, c.importo_totale
+        HAVING
+            LEFT(MAX(rc.data_scadenza), 4) = %s
+            AND CAST(SUBSTRING(MAX(rc.data_scadenza) FROM 6 FOR 2) AS INTEGER) >= %s
+    """, (str(anno), mese_corrente)).fetchall()
+
+    rinnovi_per_mese = [0.0] * 13
+    for r in rinnovi_rows:
+        ultimo_mese  = int(r['ultima_scadenza'][5:7])
+        num_rate     = int(r['num_rate'])
+        imp_mensile  = float(r['importo_mensile'] or 0)
+        start        = ultimo_mese + 1
+        if start > 12:
+            continue  # scade a dicembre, rinnovo nel 2027
+        end = min(start + num_rate - 1, 12)
+        for m in range(start, end + 1):
+            rinnovi_per_mese[m] += round(imp_mensile * 0.5, 2)
+
+    # ── Pipeline 10% spalmata sui mesi rimanenti ────────────────────────────────
+    pipeline_row = conn.execute("""
+        SELECT COALESCE(SUM(valore_stimato), 0) as totale
+        FROM opportunita
+        WHERE stato = 'trattativa' AND valore_stimato > 0
+    """).fetchone()
+    pipeline_totale   = float(pipeline_row['totale'])
+    mesi_rimanenti    = 13 - mese_corrente  # da mese corrente a dicembre incluso
+    pipeline_mensile  = round((pipeline_totale * 0.10) / mesi_rimanenti, 2) if mesi_rimanenti > 0 else 0.0
+    pipeline_per_mese = [0.0] * 13
+    for m in range(mese_corrente, 13):
+        pipeline_per_mese[m] = pipeline_mensile
 
     chart_labels = json.dumps([MESI_IT[m] for m in range(1, 13)])
     chart_ricavi = json.dumps([round(ricavi_per_mese[m], 2) for m in range(1, 13)])
     chart_uscite = json.dumps([round(uscite_per_mese[m] + fornitori_per_mese[m], 2) for m in range(1, 13)])
     chart_delta  = json.dumps([round(
         ricavi_per_mese[m] - uscite_per_mese[m] - fornitori_per_mese[m]
+        - dc_fissi_per_mese[m] - dc_var_per_mese[m] - dc_fp_per_mese[m], 2
+    ) for m in range(1, 13)])
+
+    chart_rinnovi  = json.dumps([round(rinnovi_per_mese[m], 2) for m in range(1, 13)])
+    chart_pipeline = json.dumps([round(pipeline_per_mese[m], 2) for m in range(1, 13)])
+    chart_delta_prosp = json.dumps([round(
+        ricavi_per_mese[m] + rinnovi_per_mese[m] + pipeline_per_mese[m]
+        - uscite_per_mese[m] - fornitori_per_mese[m]
         - dc_fissi_per_mese[m] - dc_var_per_mese[m] - dc_fp_per_mese[m], 2
     ) for m in range(1, 13)])
 
@@ -4184,11 +4235,15 @@ def proiezioni():
         anno=anno,
         uscite=uscite,
         mesi_it=MESI_IT,
-        oggi_mese=oggi.month,
+        oggi_mese=mese_corrente,
         chart_labels=chart_labels,
         chart_ricavi=chart_ricavi,
         chart_uscite=chart_uscite,
         chart_delta=chart_delta,
+        chart_rinnovi=chart_rinnovi,
+        chart_pipeline=chart_pipeline,
+        chart_delta_prosp=chart_delta_prosp,
+        pipeline_totale=round(pipeline_totale, 2),
         breakdown_uscite=breakdown_uscite,
         breakdown_fornitori=breakdown_fornitori,
         breakdown_costi_fissi=breakdown_costi_fissi,

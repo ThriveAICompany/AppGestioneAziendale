@@ -40,6 +40,38 @@
     </div>
   </div>
 
+  <!-- Grafico prospettico (con rinnovi + pipeline) -->
+  <div class="card" style="padding:1.5rem; margin-bottom:1.5rem;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:.8rem; margin-bottom:1rem;">
+      <div>
+        <h3 style="margin:0 0 .25rem; font-size:.95rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em;">Scenario prospettico</h3>
+        <p style="margin:0; font-size:.78rem; color:var(--text-muted);">
+          Include rinnovi probabili (50%) + pipeline trattativa (10% su €{{ pipeline_totale|format_eur }} totali)
+        </p>
+      </div>
+    </div>
+    <div class="chart-wrap" style="position:relative; height:280px;">
+      <canvas id="chartProspettico"></canvas>
+    </div>
+
+    <!-- Delta row prospettica -->
+    <div style="margin-top:1.2rem; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:.82rem;">
+        <thead>
+          <tr>
+            <td style="padding:.3rem .5rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">Delta</td>
+            {% for label in ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'] %}
+            <td style="padding:.3rem .5rem; text-align:center; color:var(--text-muted); font-weight:500;">{{ label }}</td>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="deltaRowProsp"></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Dettaglio uscite per categoria -->
   <div class="card" style="padding:1.5rem; margin-bottom:1.5rem;">
     <h3 style="margin:0 0 1rem; font-size:.95rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em;">Dettaglio uscite per categoria</h3>
@@ -194,13 +226,16 @@
 <!-- ── CHART.JS ──────────────────────────────────────────────────────────── -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const labels  = {{ chart_labels | safe }};
-const ricavi  = {{ chart_ricavi | safe }};
-const uscite  = {{ chart_uscite | safe }};
-const delta   = {{ chart_delta  | safe }};
-const dcFissi = {{ breakdown_costi_fissi | safe }};
-const dcVar   = {{ breakdown_costi_variabili | safe }};
-const dcFp    = {{ breakdown_fatture_passive | safe }};
+const labels     = {{ chart_labels | safe }};
+const ricavi     = {{ chart_ricavi | safe }};
+const uscite     = {{ chart_uscite | safe }};
+const delta      = {{ chart_delta  | safe }};
+const dcFissi    = {{ breakdown_costi_fissi | safe }};
+const dcVar      = {{ breakdown_costi_variabili | safe }};
+const dcFp       = {{ breakdown_fatture_passive | safe }};
+const rinnovi    = {{ chart_rinnovi | safe }};
+const pipeline   = {{ chart_pipeline | safe }};
+const deltaProsp = {{ chart_delta_prosp | safe }};
 
 // Chart
 const ctx = document.getElementById('chartProiezioni').getContext('2d');
@@ -290,6 +325,111 @@ delta.forEach(val => {
 // First cell label placeholder
 const firstTd = document.createElement('td');
 tbody.insertBefore(firstTd, tbody.firstChild);
+
+
+// ── GRAFICO PROSPETTICO ───────────────────────────────────────────────────────
+const ctxProsp = document.getElementById('chartProspettico').getContext('2d');
+new Chart(ctxProsp, {
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: [
+      {
+        label: 'Ricavi netti',
+        data: ricavi,
+        backgroundColor: 'rgba(20,168,158,.75)',
+        borderColor: '#14A89E',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Rinnovi probabili (50%)',
+        data: rinnovi,
+        backgroundColor: 'rgba(20,168,158,.35)',
+        borderColor: '#14A89E',
+        borderWidth: 1.5,
+        borderRadius: 4,
+        borderDash: [4, 2],
+      },
+      {
+        label: 'Pipeline (10%)',
+        data: pipeline,
+        backgroundColor: 'rgba(59,130,246,.55)',
+        borderColor: '#3b82f6',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Uscite proiettate',
+        data: uscite,
+        backgroundColor: 'rgba(224,82,82,.7)',
+        borderColor: '#e05252',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Costi fissi',
+        data: dcFissi,
+        backgroundColor: 'rgba(201,124,42,.7)',
+        borderColor: '#c97c2a',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Costi variabili',
+        data: dcVar,
+        backgroundColor: 'rgba(74,138,191,.7)',
+        borderColor: '#4a8abf',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Fatture passive',
+        data: dcFp,
+        backgroundColor: 'rgba(124,92,191,.7)',
+        borderColor: '#7c5cbf',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { font: { size: 12 }, color: '#0f1a19' } },
+      tooltip: {
+        callbacks: {
+          label: ctx => ctx.dataset.label + ': €' + ctx.parsed.y.toLocaleString('it-IT', {minimumFractionDigits:2})
+        }
+      }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#7a9190' } },
+      y: {
+        grid: { color: '#e4edec' },
+        ticks: {
+          color: '#7a9190',
+          callback: v => '€' + v.toLocaleString('it-IT')
+        }
+      }
+    }
+  }
+});
+
+// Delta row prospettica
+const tbodyProsp = document.getElementById('deltaRowProsp');
+deltaProsp.forEach(val => {
+  const td = document.createElement('td');
+  td.style.cssText = 'padding:.35rem .5rem; text-align:center; font-weight:600; font-size:.82rem; border-radius:4px;';
+  const formatted = (val >= 0 ? '+' : '') + '€' + Math.abs(val).toLocaleString('it-IT', {minimumFractionDigits:0, maximumFractionDigits:0});
+  td.textContent = formatted;
+  td.style.color = val >= 0 ? '#14A89E' : '#e05252';
+  td.style.background = val >= 0 ? 'rgba(20,168,158,.08)' : 'rgba(224,82,82,.08)';
+  tbodyProsp.appendChild(td);
+});
+const firstTdProsp = document.createElement('td');
+tbodyProsp.insertBefore(firstTdProsp, tbodyProsp.firstChild);
 
 
 // ── BREAKDOWN USCITE ─────────────────────────────────────────────────────────
