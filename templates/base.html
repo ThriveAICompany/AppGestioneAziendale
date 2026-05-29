@@ -123,15 +123,6 @@
         </li>
 
         <li>
-          <a href="{{ url_for('pipeline') }}"
-             class="sidebar-item {% if request.endpoint in ['pipeline','nuova_opportunita','aggiorna_stato_opportunita','modifica_opportunita','elimina_opportunita'] %}active{% endif %}"
-             data-label="Pipeline">
-            <i data-lucide="kanban" class="sidebar-icon"></i>
-            <span class="sidebar-label">Pipeline</span>
-          </a>
-        </li>
-
-        <li>
           <a href="{{ url_for('movimenti') }}"
              class="sidebar-item {% if request.endpoint in ['movimenti','nuovo_movimento','import_csv','import_csv_upload','import_csv_conferma'] %}active{% endif %}"
              data-label="Movimenti">
@@ -146,25 +137,6 @@
              data-label="P&amp;L">
             <i data-lucide="trending-up" class="sidebar-icon"></i>
             <span class="sidebar-label">P&amp;L</span>
-          </a>
-        </li>
-
-        <li>
-          <a href="{{ url_for('proiezioni') }}"
-             class="sidebar-item {% if request.endpoint in ['proiezioni','nuova_proiezione_uscita','modifica_proiezione_uscita','elimina_proiezione_uscita','proiezioni_importa'] %}active{% endif %}"
-             data-label="Proiezioni">
-            <i data-lucide="telescope" class="sidebar-icon"></i>
-            <span class="sidebar-label">Proiezioni</span>
-          </a>
-        </li>
-
-
-        <li>
-          <a href="{{ url_for('target_page') }}"
-             class="sidebar-item {% if request.endpoint in ['target_page','target_salva'] %}active{% endif %}"
-             data-label="Target">
-            <i data-lucide="target" class="sidebar-icon"></i>
-            <span class="sidebar-label">Target</span>
           </a>
         </li>
 

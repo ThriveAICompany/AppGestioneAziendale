@@ -204,7 +204,7 @@ input[type=range].st-slider::-moz-range-thumb {
   {% if anno_cfo == today[:4]|int %}
     Analisi corrente — dati al <strong>{{ today }}</strong>.
   {% else %}
-    Analisi storica — riferimento <strong>31 dic {{ anno_cfo }}</strong>. Saldo, burn rate e proiezioni calcolati a quella data.
+    Analisi storica — riferimento <strong>31 dic {{ anno_cfo }}</strong>. Saldo, burn rate e cash flow calcolati a quella data.
   {% endif %}
 </p>
 
@@ -236,7 +236,7 @@ input[type=range].st-slider::-moz-range-thumb {
 <!-- ── KPI Weekly ── -->
 <section class="section" style="margin-bottom:1.5rem">
   <h2>📅 Weekly</h2>
-  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
 
     <!-- 1. Cash in banca -->
     <div class="kpi-card">
@@ -257,20 +257,7 @@ input[type=range].st-slider::-moz-range-thumb {
       </div>
     </div>
 
-    <!-- 2. Pipeline totale -->
-    <div class="kpi-card">
-      <div class="kpi-label">
-        Pipeline Totale
-        <div class="kpi-icon"><i data-lucide="target"></i></div>
-      </div>
-      <div class="kpi-value">€ {{ pipeline_aperta|format_eur }}</div>
-      <div class="kpi-trend">
-        <span class="trend-badge trend-neutral"><i data-lucide="percent"></i> {{ "%.0f"|format(conversion_rate) }}% conv.</span>
-        <span class="trend-sub">opportunità aperte</span>
-      </div>
-    </div>
-
-    <!-- 3. Consulenze fissate settimana -->
+    <!-- 2. Consulenze fissate settimana -->
     <div class="kpi-card">
       <div class="kpi-label">
         Consulenze Fissate
@@ -282,7 +269,7 @@ input[type=range].st-slider::-moz-range-thumb {
       </div>
     </div>
 
-    <!-- 4. Contratti chiusi settimana -->
+    <!-- 3. Contratti chiusi settimana -->
     <div class="kpi-card">
       <div class="kpi-label">
         Contratti Chiusi
@@ -296,7 +283,7 @@ input[type=range].st-slider::-moz-range-thumb {
       </div>
     </div>
 
-    <!-- 5. MRR attuale -->
+    <!-- 4. MRR attuale -->
     <div class="kpi-card">
       <div class="kpi-label">
         MRR Attuale
@@ -315,7 +302,7 @@ input[type=range].st-slider::-moz-range-thumb {
 <!-- ── KPI Monthly ── -->
 <section class="section" style="margin-bottom:1.5rem">
   <h2>📆 Monthly</h2>
-  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
 
     <!-- 1. Fatturato -->
     <div class="kpi-card">
@@ -357,20 +344,7 @@ input[type=range].st-slider::-moz-range-thumb {
       </div>
     </div>
 
-    <!-- 3. Pipeline -->
-    <div class="kpi-card">
-      <div class="kpi-label">
-        Pipeline
-        <div class="kpi-icon"><i data-lucide="kanban"></i></div>
-      </div>
-      <div class="kpi-value">€ {{ pipeline_aperta|format_eur }}</div>
-      <div class="kpi-trend">
-        <span class="trend-badge trend-neutral"><i data-lucide="percent"></i> {{ "%.0f"|format(conversion_rate) }}% conv.</span>
-        <span class="trend-sub">valore totale</span>
-      </div>
-    </div>
-
-    <!-- 4. Eventi -->
+    <!-- 3. Eventi -->
     <div class="kpi-card">
       <div class="kpi-label">
         Eventi
@@ -382,7 +356,7 @@ input[type=range].st-slider::-moz-range-thumb {
       </div>
     </div>
 
-    <!-- 5. MRR -->
+    <!-- 4. MRR -->
     <div class="kpi-card">
       <div class="kpi-label">
         MRR

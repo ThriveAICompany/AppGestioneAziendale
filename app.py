@@ -403,10 +403,6 @@ def dashboard():
         "SELECT COUNT(DISTINCT cliente_id) FROM contratti WHERE stato = 'attivo'"
     ).fetchone()[0]
 
-    valore_pipeline = c.execute(
-        "SELECT COALESCE(SUM(valore_stimato), 0) FROM opportunita WHERE stato NOT IN ('firmato', 'perso')"
-    ).fetchone()[0]
-
     today = datetime.date.today().isoformat()
     in_30 = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
 
@@ -433,12 +429,6 @@ def dashboard():
         FROM movimenti m
         LEFT JOIN clienti c ON m.cliente_id = c.id
         ORDER BY m.data DESC, m.id DESC LIMIT 5
-    """).fetchall()
-
-    pipeline_counts = c.execute("""
-        SELECT stato, COUNT(*) as cnt, COALESCE(SUM(valore_stimato), 0) as valore
-        FROM opportunita
-        GROUP BY stato
     """).fetchall()
 
     # MRR / ARR — abbonamenti attivi con almeno una rata futura non pagata
@@ -483,11 +473,9 @@ def dashboard():
         totale_entrate=totale_entrate,
         totale_uscite=totale_uscite,
         num_clienti=num_clienti,
-        valore_pipeline=valore_pipeline,
         rate_in_scadenza=rate_in_scadenza,
         rate_scadute=rate_scadute,
         ultimi_movimenti=ultimi_movimenti,
-        pipeline_counts=pipeline_counts,
         abbonamenti_mrr=abbonamenti_mrr,
         mrr=mrr,
         mrr_netto=mrr_netto,
@@ -584,127 +572,6 @@ def api_ricavi_contabili(anno):
         for i in range(1, 13)
     ]
     return jsonify({'anno': anno, 'mesi': result})
-
-
-# ─────────────────────────────────────────
-# PIPELINE CRM
-# ─────────────────────────────────────────
-
-def parse_valore(val):
-    """Converte valori in formato italiano (es. 11.000 o 11.000,50) in float."""
-    s = (val or "").strip().replace(" ", "")
-    if not s:
-        return 0.0
-    # Se c'è la virgola come decimale (es. 11.000,50 o 1.500,00)
-    if "," in s:
-        s = s.replace(".", "").replace(",", ".")
-    else:
-        # Solo punti: potrebbero essere migliaia (11.000) o decimale (11.5)
-        parts = s.split(".")
-        if len(parts) > 1 and len(parts[-1]) == 3:
-            # Ultimo gruppo ha 3 cifre → è separatore migliaia
-            s = s.replace(".", "")
-    return float(s)
-
-@app.route("/pipeline")
-@login_required
-def pipeline():
-    conn = get_connection()
-    opportunita = conn.execute("""
-        SELECT o.*, p.nome as partner_nome
-        FROM opportunita o
-        LEFT JOIN partners p ON o.partner_id = p.id
-        ORDER BY o.data_creazione DESC
-    """).fetchall()
-    partners = conn.execute("SELECT id, nome FROM partners ORDER BY nome").fetchall()
-    conn.close()
-
-    stadi = [
-        ('lead', 'Lead'),
-        ('trattativa', 'Trattativa'),
-        ('firmato', 'Firmato'),
-        ('consegnato', 'Consegnato'),
-        ('perso', 'Perso'),
-    ]
-    per_stadio = {s: [o for o in opportunita if o['stato'] == s] for s, _ in stadi}
-
-    return render_template("pipeline.html",
-        per_stadio=per_stadio,
-        stadi=stadi,
-        partners=partners,
-        all_opportunita=opportunita,
-    )
-
-
-@app.route("/pipeline/nuovo", methods=["POST"])
-@login_required
-def nuova_opportunita():
-    conn = get_connection()
-    conn.execute("""
-        INSERT INTO opportunita
-            (nome_azienda, contatto, email, telefono, servizio, valore_stimato, sorgente, partner_id, stato, note)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'lead', %s)
-    """, (
-        request.form["nome_azienda"].strip(),
-        request.form.get("contatto", "").strip(),
-        request.form.get("email", "").strip(),
-        request.form.get("telefono", "").strip(),
-        request.form.get("servizio", "").strip(),
-        parse_valore(request.form.get("valore_stimato")),
-        request.form.get("sorgente", "evento"),
-        request.form.get("partner_id") or None,
-        request.form.get("note", "").strip(),
-    ))
-    conn.commit()
-    conn.close()
-    return redirect(url_for("pipeline"))
-
-
-@app.route("/pipeline/<int:oid>/stato", methods=["POST"])
-@login_required
-def aggiorna_stato_opportunita(oid):
-    stato = request.form["stato"]
-    conn = get_connection()
-    conn.execute("UPDATE opportunita SET stato=%s WHERE id=%s", (stato, oid))
-    conn.commit()
-    conn.close()
-    return redirect(url_for("pipeline"))
-
-
-@app.route("/pipeline/<int:oid>/modifica", methods=["POST"])
-@login_required
-def modifica_opportunita(oid):
-    conn = get_connection()
-    conn.execute("""
-        UPDATE opportunita
-        SET nome_azienda=%s, contatto=%s, email=%s, telefono=%s,
-            servizio=%s, valore_stimato=%s, sorgente=%s, partner_id=%s, note=%s
-        WHERE id=%s
-    """, (
-        request.form["nome_azienda"].strip(),
-        request.form.get("contatto", "").strip(),
-        request.form.get("email", "").strip(),
-        request.form.get("telefono", "").strip(),
-        request.form.get("servizio", "").strip(),
-        parse_valore(request.form.get("valore_stimato")),
-        request.form.get("sorgente", "evento"),
-        request.form.get("partner_id") or None,
-        request.form.get("note", "").strip(),
-        oid,
-    ))
-    conn.commit()
-    conn.close()
-    return redirect(url_for("pipeline"))
-
-
-@app.route("/pipeline/<int:oid>/elimina", methods=["POST"])
-@login_required
-def elimina_opportunita(oid):
-    conn = get_connection()
-    conn.execute("DELETE FROM opportunita WHERE id=%s", (oid,))
-    conn.commit()
-    conn.close()
-    return redirect(url_for("pipeline"))
 
 
 # ─────────────────────────────────────────
@@ -2946,7 +2813,7 @@ def riconciliazione_regola_elimina(rid):
 # ─────────────────────────────────────────
 
 def _build_cfo_data(conn, anno_ref=None):
-    """Raccoglie e calcola tutti i KPI e proiezioni per il modulo CFO.
+    """Raccoglie e calcola tutti i KPI e il cash flow per il modulo CFO.
 
     anno_ref: anno di riferimento (int). Se None o anno corrente → usa oggi.
               Se anno passato → imposta today = 31 dic di quell'anno, tutti i
@@ -3025,18 +2892,7 @@ def _build_cfo_data(conn, anno_ref=None):
     ).fetchone()[0]
     margine_pct = ((entrate_anno - uscite_anno) / entrate_anno * 100) if entrate_anno > 0 else 0.0
 
-    # --- Pipeline ---
-    pipeline_rows = c.execute("""
-        SELECT stato, COALESCE(SUM(valore_stimato),0) as valore, COUNT(*) as cnt
-        FROM opportunita GROUP BY stato
-    """).fetchall()
-    pipeline_aperta   = sum(float(p['valore']) for p in pipeline_rows if p['stato'] not in ('firmato', 'perso'))
-    pipeline_firmata  = sum(float(p['valore']) for p in pipeline_rows if p['stato'] == 'firmato')
-    totale_opps       = c.execute("SELECT COUNT(*) FROM opportunita").fetchone()[0]
-    firmate           = c.execute("SELECT COUNT(*) FROM opportunita WHERE stato='firmato'").fetchone()[0]
-    conversion_rate   = (firmate / totale_opps * 100) if totale_opps > 0 else 0.0
-
-    # --- Rate contratti future (per proiezione) ---
+    # --- Rate contratti future (per cash flow) ---
     rate_future = c.execute("""
         SELECT rc.data_scadenza, rc.importo, ct.percentuale_partner
         FROM rate_contratto rc
@@ -3083,7 +2939,6 @@ def _build_cfo_data(conn, anno_ref=None):
 
     cashflow_proj = []
     saldo_run = saldo_inizio_anno
-    mesi_futuri_rimasti = 12 - today.month  # quanti mesi futuri restano dopo il corrente
 
     for mese_n in range(1, 13):
         mese_key = f"{anno_corrente}-{mese_n:02d}"
@@ -3096,7 +2951,6 @@ def _build_cfo_data(conn, anno_ref=None):
             uscite_m         = dati['uscite']    # tutte le uscite reali (inclusi partner)
             quota_partner_m  = None              # già inclusa nelle uscite reali
             is_actual        = True
-            pipeline_bonus   = 0.0
 
         elif mese_n == today.month:
             # Mese corrente: dati reali registrati finora
@@ -3105,7 +2959,6 @@ def _build_cfo_data(conn, anno_ref=None):
             uscite_m         = dati['uscite']
             quota_partner_m  = None
             is_actual        = None
-            pipeline_bonus   = 0.0
 
         else:
             # Mese futuro: entrate da rate contratti (IVA ESCLUSA, come inserite nei contratti)
@@ -3121,14 +2974,11 @@ def _build_cfo_data(conn, anno_ref=None):
                 for r in costi_futuri
                 if r['data_scadenza'] and r['data_scadenza'][:7] == mese_key
             )
-            mesi_pip = min(mesi_futuri_rimasti, 6)
-            pipeline_bonus = (pipeline_aperta * 0.25) / mesi_pip if mesi_pip > 0 and (mese_n - today.month) <= mesi_pip else 0.0
             is_actual = False
 
         # Netto cassa: per i mesi futuri detraggo quota partner e costi fissi dalle entrate nette
         partner_out     = quota_partner_m if quota_partner_m is not None else 0.0
         netto_base      = entrate_m - partner_out - uscite_m
-        netto_ottimistico = entrate_m - partner_out + pipeline_bonus - uscite_m
         saldo_run      += netto_base
 
         cashflow_proj.append({
@@ -3138,7 +2988,6 @@ def _build_cfo_data(conn, anno_ref=None):
             'quota_partner': quota_partner_m,   # None=reale, float=stimata
             'uscite': uscite_m,
             'netto_base': netto_base,
-            'netto_ottimistico': netto_ottimistico,
             'saldo_cumulativo': saldo_run,
             'negativo': netto_base < 0,
             'is_actual': is_actual,
@@ -3188,22 +3037,8 @@ def _build_cfo_data(conn, anno_ref=None):
     score_details.append({"label": "Margine operativo", "pts": pts, "max": 25, "tag": tag,
                           "valore": f"{margine_pct:.1f}%"})
 
-    # 4. Pipeline coverage (25 pts) — pipeline vs 6 mesi di burn
-    six_month_burn = burn_rate * 6
-    pipeline_coverage = (pipeline_aperta / six_month_burn) if six_month_burn > 0 else (1.5 if pipeline_aperta > 0 else 0)
-    if pipeline_coverage > 2:
-        pts = 25; tag = "ottimo"
-    elif pipeline_coverage > 1:
-        pts = 17; tag = "buono"
-    elif pipeline_coverage > 0.5:
-        pts = 8;  tag = "attenzione"
-    else:
-        pts = 0;  tag = "critico"
-    score += pts
-    score_details.append({"label": "Pipeline Coverage", "pts": pts, "max": 25, "tag": tag,
-                          "valore": f"{pipeline_coverage:.1f}x"})
-
-    health_score = min(score, 100)
+    # Score basato su 3 metriche (75 max) → normalizzato a base 100
+    health_score = min(round(score * 100 / 75), 100)
 
     # --- Smart Alerts ---
     alerts = []
@@ -3228,7 +3063,7 @@ def _build_cfo_data(conn, anno_ref=None):
         alerts.append({
             'tipo': 'warning', 'icona': '⚡',
             'titolo': f"Runway limitato: {runway_mesi:.1f} mesi di liquidità",
-            'dettaglio': "Accelera la pipeline o rinegozia i costi fissi.",
+            'dettaglio': "Accelera la fatturazione o rinegozia i costi fissi.",
         })
 
     in_90 = (today + datetime.timedelta(days=90)).isoformat()
@@ -3243,18 +3078,6 @@ def _build_cfo_data(conn, anno_ref=None):
             'tipo': 'warning', 'icona': '📋',
             'titolo': f"{len(contratti_scad)} contratto/i in scadenza entro 90 giorni",
             'dettaglio': f"Valore a rischio: €{val_rischio:,.0f}. Avvia subito le rinegoziazioni.",
-        })
-
-    gg60_fa = (today - datetime.timedelta(days=60)).isoformat()
-    opps_stagnanti = c.execute("""
-        SELECT COUNT(*) FROM opportunita
-        WHERE stato NOT IN ('firmato','perso') AND data_creazione <= %s
-    """, (gg60_fa,)).fetchone()[0]
-    if opps_stagnanti > 0:
-        alerts.append({
-            'tipo': 'info', 'icona': '📊',
-            'titolo': f"{opps_stagnanti} opportunità ferme in pipeline da oltre 60 giorni",
-            'dettaglio': "Fai follow-up o chiudi le opportunità inattive per mantenere la pipeline pulita.",
         })
 
     if revenue_trend_pct < -15:
@@ -3421,7 +3244,7 @@ def _build_cfo_data(conn, anno_ref=None):
         azioni.append({
             'priorita': 'alta', 'icona': '⚡', 'area': 'Cash Flow',
             'titolo': f"Cash flow negativo a {p0['mese']} (€{p0['netto_base']:,.0f})",
-            'dettaglio': "Anticipa fatturazione o porta avanti opportunità dalla pipeline per coprire il mese.",
+            'dettaglio': "Anticipa la fatturazione delle rate o rinegozia i costi per coprire il mese.",
         })
 
     contratti_scad_90 = c.execute("""
@@ -3435,20 +3258,6 @@ def _build_cfo_data(conn, anno_ref=None):
             'priorita': 'alta', 'icona': '📋', 'area': 'Contratti',
             'titolo': f"Rinnova {len(contratti_scad_90)} contratto/i in scadenza (90gg)",
             'dettaglio': ', '.join(f"{ct['cliente_nome']} — {ct['data_fine']}" for ct in contratti_scad_90[:3]),
-        })
-
-    gg60_fa = (today - datetime.timedelta(days=60)).isoformat()
-    opps_stag = c.execute("""
-        SELECT nome_azienda, valore_stimato FROM opportunita
-        WHERE stato NOT IN ('firmato','perso') AND data_creazione <= %s
-        ORDER BY valore_stimato DESC LIMIT 4
-    """, (gg60_fa,)).fetchall()
-    if opps_stag:
-        tot_stag = sum(float(o['valore_stimato']) for o in opps_stag)
-        azioni.append({
-            'priorita': 'media', 'icona': '🚀', 'area': 'Pipeline',
-            'titolo': f"Riattiva {len(opps_stag)} opportunità ferme 60+ giorni — €{tot_stag:,.0f}",
-            'dettaglio': ', '.join(o['nome_azienda'] for o in opps_stag),
         })
 
     if top3_pct > 60 and len(concentrazione) >= 3:
@@ -3485,7 +3294,7 @@ def _build_cfo_data(conn, anno_ref=None):
         azioni.append({
             'priorita': 'info', 'icona': '✅', 'area': 'Generale',
             'titolo': "Nessuna azione urgente — situazione sotto controllo",
-            'dettaglio': "Continua a monitorare pipeline, rinnovi e scadenze.",
+            'dettaglio': "Continua a monitorare rinnovi e scadenze.",
         })
 
     azioni.sort(key=lambda x: 0 if x['priorita'] == 'alta' else (1 if x['priorita'] == 'media' else 2))
@@ -3663,9 +3472,6 @@ def _build_cfo_data(conn, anno_ref=None):
         'entrate_3m': entrate_3m,
         'uscite_3m': uscite_3m,
         'margine_pct': margine_pct,
-        'pipeline_aperta': pipeline_aperta,
-        'pipeline_firmata': pipeline_firmata,
-        'conversion_rate': conversion_rate,
         'cashflow_proj': cashflow_proj,
         'health_score': health_score,
         'score_details': score_details,
@@ -4008,11 +3814,6 @@ COSTI E LIQUIDITÀ:
 - Burn rate mensile: €{d['burn_rate']:,.2f}
 - Cash runway: {run_label}
 
-PIPELINE COMMERCIALE:
-- Valore pipeline aperta: €{d['pipeline_aperta']:,.2f}
-- Contratti firmati: €{d['pipeline_firmata']:,.2f}
-- Tasso conversione: {d['conversion_rate']:.1f}%
-
 BUSINESS HEALTH SCORE: {d['health_score']}/100
 
 REVENUE ENGINE:
@@ -4028,7 +3829,7 @@ INDICATORI DI EFFICIENZA:
 - LTV stimato per cliente: €{d['ltv_stimato']:,.0f}
 - MRR netto per cliente: €{d['mrr_per_cliente']:,.0f}
 
-PROIEZIONE CASH FLOW (prossimi 12 mesi):
+CASH FLOW (prossimi 12 mesi):
 {cashflow_lines}
 
 ALERT ATTIVI:
@@ -4055,312 +3856,6 @@ ALERT ATTIVI:
         temperature=0.3,
     )
     return jsonify({'response': resp.choices[0].message.content})
-
-
-# ─── PROIEZIONI ────────────────────────────────────────────────────────────────
-
-@app.route("/proiezioni")
-@login_required
-def proiezioni():
-    anno = datetime.date.today().year
-    conn = get_connection()
-
-    uscite = conn.execute(
-        "SELECT * FROM proiezioni_uscite WHERE anno=%s ORDER BY mese_inizio, nome",
-        (anno,)
-    ).fetchall()
-
-    # Ricavi lordi per mese + quota fornitore (costo)
-    ricavi_rows = conn.execute("""
-        SELECT
-            CAST(SUBSTRING(rc.data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
-            rc.importo,
-            COALESCE(ct.percentuale_partner, 0) as percentuale_partner
-        FROM rate_contratto rc
-        JOIN contratti ct ON rc.contratto_id = ct.id
-        WHERE LEFT(rc.data_scadenza, 4) = %s
-    """, (str(anno),)).fetchall()
-
-    ricavi_per_mese   = [0.0] * 13
-    fornitori_per_mese = [0.0] * 13
-    for r in ricavi_rows:
-        m = r['mese']
-        importo = float(r['importo'])
-        pct = float(r['percentuale_partner'])
-        ricavi_per_mese[m] += importo
-        fornitori_per_mese[m] += round(importo * pct / 100, 2)
-
-    SKIP_MESI = {'mensile': 1, 'bimestrale': 2, 'trimestrale': 3, 'semestrale': 6, 'annuale': 12}
-
-    # Uscite per mese da proiezioni_uscite (+ quota fornitore aggiunta sotto)
-    uscite_per_mese = [0.0] * 13
-    for u in uscite:
-        mese_inizio = u['mese_inizio']
-        durata = u['durata_mesi']
-        importo = float(u['importo_mensile'])
-        skip = SKIP_MESI.get(u['ricorrenza'] or 'mensile', 1)
-        mese_fine = 12 if durata is None else min(mese_inizio + durata - 1, 12)
-        m = mese_inizio
-        while m <= mese_fine:
-            uscite_per_mese[m] += importo
-            m += skip
-
-    # Rate finanziamenti (mutui) per mese — tutto l'anno incluse già pagate
-    finanziamenti_per_mese = [0.0] * 13
-    rate_fin_rows = conn.execute("""
-        SELECT CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
-               SUM(rata_totale) as totale
-        FROM rate_finanziamento
-        WHERE LEFT(data_scadenza, 4) = %s
-        GROUP BY mese
-    """, (str(anno),)).fetchall()
-    for r in rate_fin_rows:
-        finanziamenti_per_mese[r['mese']] += float(r['totale'])
-
-    # Rate piani di rientro fiscali per mese — tutto l'anno incluse già pagate
-    piani_rientro_per_mese = [0.0] * 13
-    rate_pr_rows = conn.execute("""
-        SELECT CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER) as mese,
-               SUM(importo) as totale
-        FROM rate_piano_rientro
-        WHERE LEFT(data_scadenza, 4) = %s
-        GROUP BY mese
-    """, (str(anno),)).fetchall()
-    for r in rate_pr_rows:
-        piani_rientro_per_mese[r['mese']] += float(r['totale'])
-
-    # Dashboard Costi fissi per mese: fin + piani rientro + manuali
-    dc_fissi_per_mese = [finanziamenti_per_mese[m] + piani_rientro_per_mese[m] for m in range(13)]
-    fissi_man_rows = conn.execute("""
-        SELECT mese, SUM(uscita_cassa) as totale
-        FROM costi_fissi_manuali
-        WHERE anno = %s
-        GROUP BY mese
-    """, (anno,)).fetchall()
-    for r in fissi_man_rows:
-        dc_fissi_per_mese[int(r['mese'])] += float(r['totale'] or 0)
-
-    # Dashboard Costi variabili per mese — al netto IVA a credito (non inclusa nei ricavi)
-    dc_var_per_mese = [0.0] * 13
-    dc_var_rows = conn.execute("""
-        SELECT mese, SUM(uscita_cassa - iva) as totale
-        FROM costi_variabili
-        WHERE anno = %s
-        GROUP BY mese
-    """, (anno,)).fetchall()
-    for r in dc_var_rows:
-        dc_var_per_mese[r['mese']] += float(r['totale'] or 0)
-
-    # Dashboard Fatture passive per mese
-    dc_fp_per_mese = [0.0] * 13
-    dc_fp_rows = conn.execute("""
-        SELECT mese, SUM(netto_a_pagare) as totale
-        FROM fatture_passive
-        WHERE anno = %s
-        GROUP BY mese
-    """, (anno,)).fetchall()
-    for r in dc_fp_rows:
-        dc_fp_per_mese[r['mese']] += float(r['totale'] or 0)
-
-    oggi = datetime.date.today()
-    mese_corrente = oggi.month
-
-    # ── Rinnovi probabili (50%) ─────────────────────────────────────────────────
-    # Contratti la cui ULTIMA rata scade nell'anno corrente, mese >= mese corrente
-    rinnovi_rows = conn.execute("""
-        SELECT
-            c.id as contratto_id,
-            c.importo_totale,
-            COUNT(rc.id) as num_rate,
-            c.importo_totale / NULLIF(COUNT(rc.id), 0) as importo_mensile,
-            MAX(rc.data_scadenza) as ultima_scadenza
-        FROM contratti c
-        JOIN rate_contratto rc ON rc.contratto_id = c.id
-        GROUP BY c.id, c.importo_totale
-        HAVING
-            LEFT(MAX(rc.data_scadenza), 4) = %s
-            AND CAST(SUBSTRING(MAX(rc.data_scadenza) FROM 6 FOR 2) AS INTEGER) >= %s
-    """, (str(anno), mese_corrente)).fetchall()
-
-    rinnovi_per_mese = [0.0] * 13
-    for r in rinnovi_rows:
-        ultimo_mese  = int(r['ultima_scadenza'][5:7])
-        num_rate     = int(r['num_rate'])
-        imp_mensile  = float(r['importo_mensile'] or 0)
-        start        = ultimo_mese + 1
-        if start > 12:
-            continue  # scade a dicembre, rinnovo nel 2027
-        end = min(start + num_rate - 1, 12)
-        for m in range(start, end + 1):
-            rinnovi_per_mese[m] += round(imp_mensile * 0.5, 2)
-
-    # ── Pipeline 10% spalmata sui mesi rimanenti ────────────────────────────────
-    pipeline_row = conn.execute("""
-        SELECT COALESCE(SUM(valore_stimato), 0) as totale
-        FROM opportunita
-        WHERE stato = 'trattativa' AND valore_stimato > 0
-    """).fetchone()
-    pipeline_totale   = float(pipeline_row['totale'])
-    mesi_rimanenti    = 13 - mese_corrente  # da mese corrente a dicembre incluso
-    pipeline_mensile  = round((pipeline_totale * 0.10) / mesi_rimanenti, 2) if mesi_rimanenti > 0 else 0.0
-    pipeline_per_mese = [0.0] * 13
-    for m in range(mese_corrente, 13):
-        pipeline_per_mese[m] = pipeline_mensile
-
-    chart_labels = json.dumps([MESI_IT[m] for m in range(1, 13)])
-    chart_ricavi = json.dumps([round(ricavi_per_mese[m], 2) for m in range(1, 13)])
-    chart_uscite = json.dumps([round(uscite_per_mese[m] + fornitori_per_mese[m], 2) for m in range(1, 13)])
-    chart_delta  = json.dumps([round(
-        ricavi_per_mese[m] - uscite_per_mese[m] - fornitori_per_mese[m]
-        - dc_fissi_per_mese[m] - dc_var_per_mese[m] - dc_fp_per_mese[m], 2
-    ) for m in range(1, 13)])
-
-    chart_rinnovi  = json.dumps([round(rinnovi_per_mese[m], 2) for m in range(1, 13)])
-    chart_pipeline = json.dumps([round(pipeline_per_mese[m], 2) for m in range(1, 13)])
-    chart_delta_prosp = json.dumps([round(
-        ricavi_per_mese[m] + rinnovi_per_mese[m] + pipeline_per_mese[m]
-        - uscite_per_mese[m] - fornitori_per_mese[m]
-        - dc_fissi_per_mese[m] - dc_var_per_mese[m] - dc_fp_per_mese[m], 2
-    ) for m in range(1, 13)])
-
-    # Dettaglio uscite per categoria (JSON per la sezione breakdown)
-    breakdown_uscite          = json.dumps([round(uscite_per_mese[m], 2) for m in range(1, 13)])
-    breakdown_fornitori       = json.dumps([round(fornitori_per_mese[m], 2) for m in range(1, 13)])
-    breakdown_costi_fissi     = json.dumps([round(dc_fissi_per_mese[m], 2) for m in range(1, 13)])
-    breakdown_costi_variabili = json.dumps([round(dc_var_per_mese[m], 2) for m in range(1, 13)])
-    breakdown_fatture_passive = json.dumps([round(dc_fp_per_mese[m], 2) for m in range(1, 13)])
-
-    conn.close()
-    return render_template("proiezioni.html",
-        anno=anno,
-        uscite=uscite,
-        mesi_it=MESI_IT,
-        oggi_mese=mese_corrente,
-        chart_labels=chart_labels,
-        chart_ricavi=chart_ricavi,
-        chart_uscite=chart_uscite,
-        chart_delta=chart_delta,
-        chart_rinnovi=chart_rinnovi,
-        chart_pipeline=chart_pipeline,
-        chart_delta_prosp=chart_delta_prosp,
-        pipeline_totale=round(pipeline_totale, 2),
-        breakdown_uscite=breakdown_uscite,
-        breakdown_fornitori=breakdown_fornitori,
-        breakdown_costi_fissi=breakdown_costi_fissi,
-        breakdown_costi_variabili=breakdown_costi_variabili,
-        breakdown_fatture_passive=breakdown_fatture_passive,
-    )
-
-
-@app.route("/proiezioni/importa", methods=["POST"])
-@login_required
-def proiezioni_importa():
-    anno = datetime.date.today().year
-    conn = get_connection()
-
-    already = {row[0] for row in conn.execute(
-        "SELECT scadenza_id FROM proiezioni_uscite WHERE anno=%s AND scadenza_id IS NOT NULL",
-        (anno,)
-    ).fetchall()}
-
-    rows = conn.execute("""
-        SELECT sc.id, sc.nome, sc.uscita_cassa_rata, sc.ricorrenza,
-               COUNT(*) as num_rate_anno
-        FROM scadenze_costi sc
-        JOIN rate_scadenza_costo rsc ON rsc.scadenza_costo_id = sc.id
-        WHERE LEFT(rsc.data_scadenza, 4) = %s
-        GROUP BY sc.id, sc.nome, sc.uscita_cassa_rata, sc.ricorrenza
-    """, (str(anno),)).fetchall()
-
-    for r in rows:
-        if r['id'] in already:
-            continue
-
-        if r['ricorrenza'] == 'mensile':
-            primo_mese = conn.execute("""
-                SELECT MIN(CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER))
-                FROM rate_scadenza_costo
-                WHERE scadenza_costo_id = %s AND LEFT(data_scadenza, 4) = %s
-            """, (r['id'], str(anno))).fetchone()[0] or 1
-            conn.execute("""
-                INSERT INTO proiezioni_uscite
-                    (nome, importo_mensile, tipo, mese_inizio, durata_mesi, anno, scadenza_id)
-                VALUES (%s, %s, 'fisso', %s, %s, %s, %s)
-            """, (r['nome'], r['uscita_cassa_rata'], primo_mese, r['num_rate_anno'], anno, r['id']))
-        else:
-            months = conn.execute("""
-                SELECT CAST(SUBSTRING(data_scadenza FROM 6 FOR 2) AS INTEGER) as mese
-                FROM rate_scadenza_costo
-                WHERE scadenza_costo_id = %s AND LEFT(data_scadenza, 4) = %s
-                ORDER BY data_scadenza
-            """, (r['id'], str(anno))).fetchall()
-            for month_row in months:
-                conn.execute("""
-                    INSERT INTO proiezioni_uscite
-                        (nome, importo_mensile, tipo, mese_inizio, durata_mesi, anno, scadenza_id)
-                    VALUES (%s, %s, 'fisso', %s, 1, %s, %s)
-                """, (r['nome'], r['uscita_cassa_rata'], month_row['mese'], anno, r['id']))
-
-    conn.commit()
-    conn.close()
-    return redirect(url_for('proiezioni'))
-
-
-@app.route("/proiezioni/uscite/nuovo", methods=["POST"])
-@login_required
-def nuova_proiezione_uscita():
-    anno = datetime.date.today().year
-    nome = request.form.get('nome', '').strip()
-    importo = float(request.form.get('importo_mensile', 0) or 0)
-    tipo = request.form.get('tipo', 'fisso')
-    ricorrenza = request.form.get('ricorrenza', 'mensile')
-    mese_inizio = int(request.form.get('mese_inizio', 1))
-    durata_raw = request.form.get('durata_mesi', '').strip()
-    durata_mesi = int(durata_raw) if durata_raw else None
-    note = request.form.get('note', '').strip() or None
-
-    conn = get_connection()
-    conn.execute("""
-        INSERT INTO proiezioni_uscite
-            (nome, importo_mensile, tipo, ricorrenza, mese_inizio, durata_mesi, anno, note)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (nome, importo, tipo, ricorrenza, mese_inizio, durata_mesi, anno, note))
-    conn.commit()
-    conn.close()
-    return redirect(url_for('proiezioni'))
-
-
-@app.route("/proiezioni/uscite/<int:uid>/modifica", methods=["POST"])
-@login_required
-def modifica_proiezione_uscita(uid):
-    nome = request.form.get('nome', '').strip()
-    importo = float(request.form.get('importo_mensile', 0) or 0)
-    tipo = request.form.get('tipo', 'fisso')
-    ricorrenza = request.form.get('ricorrenza', 'mensile')
-    mese_inizio = int(request.form.get('mese_inizio', 1))
-    durata_raw = request.form.get('durata_mesi', '').strip()
-    durata_mesi = int(durata_raw) if durata_raw else None
-    note = request.form.get('note', '').strip() or None
-
-    conn = get_connection()
-    conn.execute("""
-        UPDATE proiezioni_uscite
-        SET nome=%s, importo_mensile=%s, tipo=%s, ricorrenza=%s, mese_inizio=%s, durata_mesi=%s, note=%s
-        WHERE id=%s
-    """, (nome, importo, tipo, ricorrenza, mese_inizio, durata_mesi, note, uid))
-    conn.commit()
-    conn.close()
-    return redirect(url_for('proiezioni'))
-
-
-@app.route("/proiezioni/uscite/<int:uid>/elimina", methods=["POST"])
-@login_required
-def elimina_proiezione_uscita(uid):
-    conn = get_connection()
-    conn.execute("DELETE FROM proiezioni_uscite WHERE id=%s", (uid,))
-    conn.commit()
-    conn.close()
-    return redirect(url_for('proiezioni'))
 
 
 # ─────────────────────────────────────────
@@ -4598,170 +4093,6 @@ def toggle_rata_piano_rientro(rid):
         result = {"error": "not found"}
     conn.close()
     return jsonify(result)
-
-
-@app.route("/target")
-@login_required
-def target_page():
-    conn = get_connection()
-    today = datetime.date.today()
-    anno = today.year
-    anno_scorso = anno - 1
-
-    def entrate_nette_periodo(c, anno_str, data_fine_str):
-        rows = c.execute("""
-            SELECT importo, LOWER(descrizione) as desc_lower
-            FROM movimenti
-            WHERE tipo = 'entrata'
-              AND LEFT(data, 4) = %s
-              AND data <= %s
-              AND data IS NOT NULL
-        """, (anno_str, data_fine_str)).fetchall()
-        totale = 0.0
-        for r in rows:
-            if 'stripe' in (r['desc_lower'] or '') or 'paypal' in (r['desc_lower'] or ''):
-                totale += float(r['importo'])
-            else:
-                totale += float(r['importo']) / 1.22
-        return round(totale, 2)
-
-    def entrate_nette_per_mese(c, anno_str):
-        rows = c.execute("""
-            SELECT CAST(SUBSTRING(data FROM 6 FOR 2) AS INTEGER) as mese,
-                   importo, LOWER(descrizione) as desc_lower
-            FROM movimenti
-            WHERE tipo = 'entrata'
-              AND LEFT(data, 4) = %s
-              AND data IS NOT NULL
-        """, (anno_str,)).fetchall()
-        mesi = {i: 0.0 for i in range(1, 13)}
-        for r in rows:
-            if 'stripe' in (r['desc_lower'] or '') or 'paypal' in (r['desc_lower'] or ''):
-                mesi[r['mese']] += float(r['importo'])
-            else:
-                mesi[r['mese']] += float(r['importo']) / 1.22
-        return {m: round(v, 2) for m, v in mesi.items()}
-
-    data_oggi = today.isoformat()
-    data_scorso = f"{anno_scorso}-{today.month:02d}-{today.day:02d}"
-
-    ytd_corrente = entrate_nette_periodo(conn, str(anno), data_oggi)
-    ytd_scorso   = entrate_nette_periodo(conn, str(anno_scorso), data_scorso)
-
-    storico_mesi = entrate_nette_per_mese(conn, str(anno_scorso))
-    reale_mesi   = entrate_nette_per_mese(conn, str(anno))
-    totale_storico = sum(storico_mesi.values())
-    stagionalita = {
-        m: round(storico_mesi[m] / totale_storico * 100, 1) if totale_storico > 0 else 0.0
-        for m in range(1, 13)
-    }
-
-    row_ta = conn.execute(
-        "SELECT importo, note FROM target_annuale WHERE anno = %s", (anno,)
-    ).fetchone()
-    target_importo = float(row_ta['importo']) if row_ta else None
-    note_anno = (row_ta['note'] or '') if row_ta else ''
-
-    rows_tm = conn.execute(
-        "SELECT mese, importo FROM target_mensile WHERE anno = %s", (anno,)
-    ).fetchall()
-    target_mesi = {r['mese']: round(float(r['importo']), 2) for r in rows_tm}
-
-    mesi_rimanenti = max(1, 12 - today.month + (1 if today.day < 15 else 0))
-    if target_importo:
-        balance_to_go = round(target_importo - ytd_corrente, 2)
-        ritmo_necessario = round(balance_to_go / mesi_rimanenti, 2)
-        perc_target = round(ytd_corrente / target_importo * 100, 1) if target_importo > 0 else 0
-    else:
-        balance_to_go = None
-        ritmo_necessario = None
-        perc_target = None
-
-    var_yoy = None
-    if ytd_scorso > 0:
-        var_yoy = round((ytd_corrente - ytd_scorso) / ytd_scorso * 100, 1)
-
-    mesi_restanti_lista = list(range(today.month, 13))
-    storico_rimanente = round(sum(storico_mesi[m] for m in mesi_restanti_lista), 2)
-    if storico_rimanente > 0 and balance_to_go is not None:
-        crescita_necessaria = round((balance_to_go - storico_rimanente) / storico_rimanente * 100, 1)
-    else:
-        crescita_necessaria = None
-
-    storico = conn.execute(
-        "SELECT anno, importo FROM target_annuale ORDER BY anno DESC"
-    ).fetchall()
-    conn.close()
-
-    nomi_mesi = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
-                 'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
-
-    return render_template("target.html",
-        anno=anno,
-        anno_scorso=anno_scorso,
-        ytd_corrente=ytd_corrente,
-        ytd_scorso=ytd_scorso,
-        target_importo=target_importo,
-        balance_to_go=balance_to_go,
-        ritmo_necessario=ritmo_necessario,
-        perc_target=perc_target,
-        var_yoy=var_yoy,
-        mesi_rimanenti=mesi_rimanenti,
-        data_riferimento=data_oggi,
-        storico=storico,
-        today=today,
-        storico_mesi=storico_mesi,
-        reale_mesi=reale_mesi,
-        target_mesi=target_mesi,
-        stagionalita=stagionalita,
-        totale_storico=totale_storico,
-        note_anno=note_anno,
-        nomi_mesi=nomi_mesi,
-        storico_rimanente=storico_rimanente,
-        crescita_necessaria=crescita_necessaria,
-    )
-
-
-@app.route("/target/salva", methods=["POST"])
-@login_required
-def target_salva():
-    anno = int(request.form.get("anno"))
-    importo = float(request.form.get("importo", 0))
-    conn = get_connection()
-    conn.execute("""
-        INSERT INTO target_annuale (anno, importo)
-        VALUES (%s, %s)
-        ON CONFLICT (anno) DO UPDATE SET importo = EXCLUDED.importo
-    """, (anno, importo))
-    conn.commit()
-    conn.close()
-    return redirect(url_for("target_page"))
-
-
-@app.route("/target/budget-mensile", methods=["POST"])
-@login_required
-def target_budget_mensile():
-    anno = int(request.form.get("anno"))
-    note = request.form.get("note", "")
-    conn = get_connection()
-    conn.execute(
-        "UPDATE target_annuale SET note = %s WHERE anno = %s", (note, anno)
-    )
-    for mese in range(1, 13):
-        val = request.form.get(f"mese_{mese}", "").strip()
-        if val:
-            try:
-                importo = float(val)
-                conn.execute("""
-                    INSERT INTO target_mensile (anno, mese, importo)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (anno, mese) DO UPDATE SET importo = EXCLUDED.importo
-                """, (anno, mese, importo))
-            except ValueError:
-                pass
-    conn.commit()
-    conn.close()
-    return redirect(url_for("target_page"))
 
 
 @app.route("/clienti")

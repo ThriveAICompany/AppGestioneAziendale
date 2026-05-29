@@ -120,23 +120,6 @@ def init_db():
     """)
 
     c.execute("""
-        CREATE TABLE IF NOT EXISTS opportunita (
-            id SERIAL PRIMARY KEY,
-            nome_azienda TEXT NOT NULL,
-            contatto TEXT,
-            email TEXT,
-            telefono TEXT,
-            servizio TEXT,
-            valore_stimato REAL DEFAULT 0,
-            sorgente TEXT DEFAULT 'evento',
-            partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL,
-            stato TEXT NOT NULL DEFAULT 'lead',
-            note TEXT,
-            data_creazione TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD')
-        )
-    """)
-
-    c.execute("""
         CREATE TABLE IF NOT EXISTS contratti (
             id SERIAL PRIMARY KEY,
             cliente_id INTEGER NOT NULL REFERENCES clienti(id) ON DELETE CASCADE,
@@ -189,27 +172,6 @@ def init_db():
             importo REAL NOT NULL DEFAULT 0,
             creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
             UNIQUE(anno, mese, categoria, tipo)
-        )
-    """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS target_annuale (
-            id SERIAL PRIMARY KEY,
-            anno INTEGER NOT NULL UNIQUE,
-            importo REAL NOT NULL,
-            note TEXT DEFAULT '',
-            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-        )
-    """)
-    c.execute("ALTER TABLE target_annuale ADD COLUMN IF NOT EXISTS note TEXT DEFAULT ''")
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS target_mensile (
-            id SERIAL PRIMARY KEY,
-            anno INTEGER NOT NULL,
-            mese INTEGER NOT NULL CHECK(mese BETWEEN 1 AND 12),
-            importo REAL NOT NULL,
-            UNIQUE(anno, mese)
         )
     """)
 
@@ -299,22 +261,6 @@ def init_db():
             categoria TEXT NOT NULL DEFAULT 'altro',
             raggruppa_per_mese INTEGER NOT NULL DEFAULT 0,
             creata_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-        )
-    """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS proiezioni_uscite (
-            id SERIAL PRIMARY KEY,
-            nome TEXT NOT NULL,
-            importo_mensile REAL NOT NULL,
-            tipo TEXT NOT NULL DEFAULT 'fisso',
-            ricorrenza TEXT NOT NULL DEFAULT 'mensile',
-            mese_inizio INTEGER NOT NULL DEFAULT 1,
-            durata_mesi INTEGER,
-            anno INTEGER NOT NULL DEFAULT 2026,
-            note TEXT,
-            scadenza_id INTEGER,
-            creato_il TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
         )
     """)
 
@@ -433,10 +379,11 @@ def _migrate(conn):
     # Rimuovi regola generica pagoPA
     c.execute("DELETE FROM riconciliazione_regole WHERE pattern='pagamento pagopa' AND scadenza_id IS NULL")
 
-    # proiezioni_uscite: add ricorrenza column
-    existing = _get_columns(c, 'proiezioni_uscite')
-    if 'ricorrenza' not in existing:
-        c.execute("ALTER TABLE proiezioni_uscite ADD COLUMN ricorrenza TEXT NOT NULL DEFAULT 'mensile'")
+    # Rimozione definitiva sezioni proiezioni, target, pipeline (CRM)
+    c.execute("DROP TABLE IF EXISTS proiezioni_uscite CASCADE")
+    c.execute("DROP TABLE IF EXISTS target_mensile CASCADE")
+    c.execute("DROP TABLE IF EXISTS target_annuale CASCADE")
+    c.execute("DROP TABLE IF EXISTS opportunita CASCADE")
 
     # costi_variabili: add nome, categoria
     existing = _get_columns(c, 'costi_variabili')

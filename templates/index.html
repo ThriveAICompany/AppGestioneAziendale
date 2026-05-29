@@ -98,7 +98,7 @@
 
 </div>
 
-<!-- ── Cashflow + MRR/Pipeline ── -->
+<!-- ── Cashflow + MRR ── -->
 <div class="dash-grid">
 
   <!-- Cashflow chart -->
@@ -118,7 +118,7 @@
     </div>
   </div>
 
-  <!-- Right: MRR se disponibile, poi pipeline -->
+  <!-- Right: MRR se disponibile -->
   <div style="display:flex;flex-direction:column;gap:1rem">
 
     {% if abbonamenti_mrr %}
@@ -142,33 +142,10 @@
         </div>
       </div>
     </div>
-    {% endif %}
-
-    {% if pipeline_counts %}
-    <div class="card" style="padding:0;overflow:hidden;flex:1">
-      <div class="card-header">
-        <div class="card-title">Pipeline</div>
-        <span class="badge badge-teal">€ {{ valore_pipeline|format_eur }}</span>
-      </div>
-      {% set stage_labels = {'lead': 'Lead', 'trattativa': 'Trattativa', 'firmato': 'Firmato', 'consegnato': 'Consegnato', 'perso': 'Perso'} %}
-      {% for row in pipeline_counts %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 1.4rem;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:0.6rem">
-          <span class="badge stage-badge-{{ row.stato }}">{{ stage_labels.get(row.stato, row.stato) }}</span>
-        </div>
-        <div style="display:flex;gap:1.25rem;align-items:center">
-          <span style="font-size:0.88rem;font-weight:700;color:var(--text)">{{ row.cnt }}</span>
-          <span style="font-size:0.78rem;color:var(--text-muted)">€ {{ "%.0f"|format(row.valore) }}</span>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if not abbonamenti_mrr and not pipeline_counts %}
+    {% else %}
     <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:140px">
       <p class="empty-msg" style="text-align:center;padding:0">
-        Nessun dato pipeline.<br>
+        Nessun ricavo ricorrente attivo.<br>
         <a href="{{ url_for('ricavi') }}">Aggiungi ricavi</a>
       </p>
     </div>
