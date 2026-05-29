@@ -3738,7 +3738,7 @@ def pl_export_csv(anno, mese):
     for v in voci:
         writer.writerow([v['conto'], v['descrizione'],
                          v['saldo_non_rettificato'], v['rettifiche'], v['saldo_finale']])
-    nome_mese = MESI_IT.get(mese, str(mese)).lower()
+    nome_mese = MESI_IT[mese].lower() if 1 <= mese <= 12 else str(mese)
     filename = f"profis_{anno}_{nome_mese}.csv"
     return Response(output.getvalue(), mimetype='text/csv',
                     headers={'Content-Disposition': f'attachment; filename={filename}'})
