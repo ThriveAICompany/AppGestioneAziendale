@@ -3726,10 +3726,12 @@ def pl():
 @app.route("/pl/export-csv/<int:anno>/<int:mese>")
 @login_required
 def pl_export_csv(anno, mese):
+    tipo = request.args.get('tipo', 'costi')
+    tabella = 'ricavi_contabili' if tipo == 'ricavi' else 'costi_contabili'
     conn = get_connection()
-    voci = conn.execute("""
+    voci = conn.execute(f"""
         SELECT conto, descrizione, saldo_non_rettificato, rettifiche, saldo_finale
-        FROM costi_contabili WHERE anno=%s AND mese=%s ORDER BY conto
+        FROM {tabella} WHERE anno=%s AND mese=%s ORDER BY conto
     """, (anno, mese)).fetchall()
     conn.close()
     output = io.StringIO()
@@ -3739,7 +3741,7 @@ def pl_export_csv(anno, mese):
         writer.writerow([v['conto'], v['descrizione'],
                          v['saldo_non_rettificato'], v['rettifiche'], v['saldo_finale']])
     nome_mese = MESI_IT[mese].lower() if 1 <= mese <= 12 else str(mese)
-    filename = f"profis_{anno}_{nome_mese}.csv"
+    filename = f"profis_{tipo}_{anno}_{nome_mese}.csv"
     return Response(output.getvalue(), mimetype='text/csv',
                     headers={'Content-Disposition': f'attachment; filename={filename}'})
 

@@ -274,8 +274,8 @@
       </form>
       {% endif %}
       {% if mese_sel and voci_mese %}
+      <a href="{{ url_for('pl_export_csv', anno=anno, mese=mese_sel, tipo=tipo_sel) }}" class="btn btn-secondary" style="font-size:0.82rem">↓ Scarica CSV</a>
       {% if tipo_sel == 'costi' %}
-      <a href="{{ url_for('pl_export_csv', anno=anno, mese=mese_sel) }}" class="btn btn-secondary" style="font-size:0.82rem">↓ Scarica CSV</a>
       <form method="POST" action="{{ url_for('costi_contabili_elimina_mese', anno=anno, mese=mese_sel) }}"
             onsubmit="return confirm('Eliminare i costi di {{ mesi_it[mese_sel] }} {{ anno }}?')">
         <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;color:#c62828">Elimina mese</button>
